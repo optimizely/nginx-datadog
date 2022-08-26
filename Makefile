@@ -12,25 +12,16 @@ build: build-deps nginx/objs/Makefile sources
 	@echo 'build successful 👍'
 
 .PHONY: sources
-sources: dd-opentracing-cpp/.git opentracing-cpp/.git nginx/
+sources: dd-trace-cpp/.git nginx/
 
 .PHONY: build-deps
-build-deps: sources dd-opentracing-cpp-deps
+build-deps: sources dd-trace-cpp-deps
 
-dd-opentracing-cpp/.git opentracing-cpp/.git:
+dd-trace-cpp/.git:
 	git submodule update --init --recursive
 
-dd-opentracing-cpp/scripts/install_dependencies.sh: dd-opentracing-cpp/.git
-
-.PHONY: dd-opentracing-cpp-deps
-dd-opentracing-cpp-deps: dd-opentracing-cpp/deps/include/curl dd-opentracing-cpp/deps/include/msgpack dd-opentracing-cpp/.git
-
-dd-opentracing-cpp/deps/include/curl dd-opentracing-cpp/deps/include/msgpack: dd-opentracing-cpp/scripts/install_dependencies.sh
-	ls -lrt
-	ls -lrt dd-opentracing-cpp
-	ls -lrt dd-opentracing-cpp/scripts
-	cd dd-opentracing-cpp && ls ./scripts && ./scripts/install_dependencies.sh not-opentracing
-	touch $@
+.PHONY: dd-trace-cpp-deps
+dd-trace-cpp-deps: dd-trace-cpp/.git
 
 nginx/objs/Makefile: nginx/ module/config
 	cd nginx && ./configure --add-dynamic-module=../module/ --with-compat
@@ -47,9 +38,9 @@ nginx/: nginx-tag
 nginx-tag:
 	$(error The file "nginx-tag" must be present and contain the tag name of the desired compatible nginx Docker image, e.g. "1.19.1" or "1.21.3-alpine")
 
-dd-opentracing-cpp/.clang-format: dd-opentracing-cpp/.git
+dd-trace-cpp/.clang-format: dd-trace-cpp/.git
 	
-.clang-format: dd-opentracing-cpp/.clang-format
+.clang-format: dd-trace-cpp/.clang-format
 	cp $< $@
 
 .PHONY: format
@@ -67,8 +58,7 @@ clean:
 .PHONY: clobber
 clobber: clean
 	rm -rf \
-	    nginx \
-		dd-opentracing-cpp/deps
+	    nginx
 
 .PHONY: build-in-docker
 build-in-docker: sources
