@@ -16,7 +16,7 @@
 #include "log_conf.h"
 #include "dd.h"
 #include "string_util.h"
-#include "string_view.h"
+#include <string_view>
 #include "tracing_library.h"
 
 extern "C" {
@@ -260,7 +260,7 @@ ngx_module_t ngx_http_datadog_module = {
 //
 // Note that `ngx_set_env` is adapted from the function of the same name in
 // `nginx.c` within the nginx source code.
-static void *ngx_set_env(string_view entry, ngx_cycle_t *cycle) {
+static void *ngx_set_env(std::string_view entry, ngx_cycle_t *cycle) {
   ngx_core_conf_t *ccf = (ngx_core_conf_t *)ngx_get_conf(cycle->conf_ctx, ngx_core_module);
 
   ngx_str_t *value, *var;
