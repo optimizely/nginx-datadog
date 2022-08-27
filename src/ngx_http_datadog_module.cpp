@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <exception>
 #include <iterator>
+#include <string_view>
 #include <utility>
 
 #include "datadog_conf.h"
@@ -12,11 +13,10 @@
 #include "datadog_handler.h"
 #include "datadog_variable.h"
 #include "defer.h"
-#include "load_tracer.h"
 #include "log_conf.h"
 #include "dd.h"
+#include "global_tracer.h"
 #include "string_util.h"
-#include <string_view>
 #include "tracing_library.h"
 
 extern "C" {
@@ -342,12 +342,13 @@ static ngx_int_t datadog_init_worker(ngx_cycle_t *cycle) noexcept try {
     return NGX_OK;
   }
 
-  std::shared_ptr<ot::Tracer> tracer = load_tracer(cycle->log, str(main_conf->tracer_conf));
-  if (!tracer) {
+  auto maybe_tracer = TracingLibrary::make_tracer(str(main_conf->tracer_conf));
+  if (auto *error = maybe_tracer.if_error()) {
+    ngx_log_error(NGX_LOG_ERR, cycle->log, 0, "Failed to construct tracer: [error code %d] %s", int(error->code), error->message.c_str());
     return NGX_ERROR;
   }
 
-  ot::Tracer::InitGlobal(std::move(tracer));
+  reset_global_tracer(std::move(*maybe_tracer));
   return NGX_OK;
 } catch (const std::exception &e) {
   ngx_log_error(NGX_LOG_ERR, cycle->log, 0, "failed to initialize tracer: %s", e.what());
@@ -355,13 +356,9 @@ static ngx_int_t datadog_init_worker(ngx_cycle_t *cycle) noexcept try {
 }
 
 static void datadog_exit_worker(ngx_cycle_t *cycle) noexcept {
-  // If the `ot::Tracer` singleton has been set (in `datadog_init_worker`),
-  // `Close` it and destroy it (technically, reduce its reference count).
-  auto tracer = ot::Tracer::InitGlobal(nullptr);
-  if (tracer != nullptr) {
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, cycle->log, 0, "closing Datadog tracer");
-    tracer->Close();
-  }
+  // If the `dd::Tracer` singleton has been set (in `datadog_init_worker`),
+  // destroy it. TODO clean shutdown?
+  reset_global_tracer();
 }
 
 //------------------------------------------------------------------------------
@@ -432,7 +429,7 @@ namespace {
 // used.  If neither has a value, then a hard-coded default will be used.
 // Return `NGX_CONF_OK` on success, or another value otherwise.
 char *merge_operation_name_script(ngx_conf_t *conf, NgxScript &previous, NgxScript &current,
-                                  ot::string_view default_pattern) {
+                                  std::string_view default_pattern) {
   if (current.is_valid()) {
     return NGX_CONF_OK;
   }

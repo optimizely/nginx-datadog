@@ -34,12 +34,12 @@ static std::string get_request_operation_name(ngx_http_request_t *request,
     return to_string(core_loc_conf->name);
 }
 
-static void add_script_tags(ngx_array_t *tags, ngx_http_request_t *request, ot::Span &span) {
+static void add_script_tags(ngx_array_t *tags, ngx_http_request_t *request, dd::Span &span) {
   if (!tags) return;
   auto add_tag = [&](const datadog_tag_t &tag) {
     auto key = tag.key_script.run(request);
     auto value = tag.value_script.run(request);
-    if (key.data && value.data) span.SetTag(to_string(key), to_string(value));
+    if (key.data && value.data) span.set_tag(to_string(key), to_string(value));
   };
   for_each<datadog_tag_t>(*tags, add_tag);
 }
@@ -89,7 +89,7 @@ static dd::TimePoint estimate_past_time_point(std::chrono::system_clock::time_po
 RequestTracing::RequestTracing(ngx_http_request_t *request,
                                ngx_http_core_loc_conf_t *core_loc_conf,
                                datadog_loc_conf_t *loc_conf,
-                               std::optional<dd::Span> parent)
+                               dd::Span* parent)
     : request_{request},
       main_conf_{static_cast<datadog_main_conf_t *>(
           ngx_http_get_module_main_conf(request_, ngx_http_datadog_module))},
