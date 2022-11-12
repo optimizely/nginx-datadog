@@ -23,26 +23,33 @@ def spelling(cursor):
     else:
         return cursor.spelling
 
-def dump(cursor, tabstop=2):
+def dump(cursor, tabstop=2, print=print):
     def recur(cursor, tabs):
         kind = cursor.kind.name
         # AST nodes unexposed to libclang are transparent.
         if kind.startswith('UNEXPOSED_'):
             for child in cursor.get_children():
-                # TODO too many newlines
-                print()
-                recur(child, tabs)
+                yield from recur(child, tabs)
             return
-        indent = tabs * tabstop * ' '
         name = spelling(cursor)
-        separator = ' ' if name else ''
-        print(f'{indent}({kind}{separator}{name}', end='')
+        yield tabs, kind, name, cursor.location.file
         for child in cursor.get_children():
-            print(end='\n')
-            recur(child, tabs + 1)
-        print(')', end='')
-    recur(cursor, 0)
-    print()
+            yield from recur(child, tabs + 1)
+
+    prev_tabs = 0
+    for tabs, kind, name, file in recur(cursor, prev_tabs):
+        if tabs:
+            parens = ')' * (prev_tabs - tabs + 1)
+            print(parens)
+        indent = tabs * tabstop * ' '
+        if kind == 'NAMESPACE' and file is not None:
+            print(f'{indent}; {file}')
+        maybe_name = f' {name}' if  name else ''
+        print(f'{indent}({kind.lower()}{maybe_name}', end='')
+        prev_tabs = tabs
+    parens = ')' * (prev_tabs + 1)
+    print(parens)
+        
 
 def get_cursor(cmd):
     args = list(cmd.arguments)
@@ -60,10 +67,11 @@ def dump_like(pattern):
         print()
 
 parser = argparse.ArgumentParser(description='Print AST of matching files.')
-parser.add_argument('pattern', default='.*', help='regex pattern for filenames')
+parser.add_argument('pattern', nargs='?', help='regex pattern for filenames')
 options = parser.parse_args()
 
-dump_like(options.pattern)
+if options.pattern is not None:
+    dump_like(options.pattern)
 
 """How do I deal with UNEXPOSED_* cursor kinds?
 
@@ -77,5 +85,5 @@ should become
 (a foo
   (b baz))
 
-The children of an "unexposed" end up in their parent's place.
+The children of an "unexposed" end up as their grandparent's children.
 """
