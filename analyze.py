@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
+import argparse
 from clang import cindex
 from pathlib import Path
+import re
 
 index = cindex.Index.create()
 
@@ -23,10 +25,18 @@ def spelling(cursor):
 
 def dump(cursor, tabstop=2):
     def recur(cursor, tabs):
+        kind = cursor.kind.name
+        # AST nodes unexposed to libclang are transparent.
+        if kind.startswith('UNEXPOSED_'):
+            for child in cursor.get_children():
+                # TODO too many newlines
+                print()
+                recur(child, tabs)
+            return
         indent = tabs * tabstop * ' '
         name = spelling(cursor)
         separator = ' ' if name else ''
-        print(f'{indent}({cursor.kind.name}{separator}{name}', end='')
+        print(f'{indent}({kind}{separator}{name}', end='')
         for child in cursor.get_children():
             print(end='\n')
             recur(child, tabs + 1)
@@ -40,10 +50,32 @@ def get_cursor(cmd):
     tu = index.parse(cmd.filename, flags)
     return tu.cursor
 
-def dump_all():
+def dump_like(pattern):
     for cmd in cmds:
+        if not re.search(pattern, cmd.filename):
+            continue
         c = get_cursor(cmd)
         cc = list(c.get_children())
         dump(c)
         print()
 
+parser = argparse.ArgumentParser(description='Print AST of matching files.')
+parser.add_argument('pattern', default='.*', help='regex pattern for filenames')
+options = parser.parse_args()
+
+dump_like(options.pattern)
+
+"""How do I deal with UNEXPOSED_* cursor kinds?
+
+(a foo
+  (unexposed_x bar
+    (b baz))
+  (unexposed_y wakka))
+
+should become
+
+(a foo
+  (b baz))
+
+The children of an "unexposed" end up in their parent's place.
+"""
