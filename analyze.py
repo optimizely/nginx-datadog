@@ -17,6 +17,8 @@ def spelling(cursor):
     else:
         return cursor.spelling
 
+member_ref_exprs = []
+
 def dump(cursor, tabstop=2, print=print):
     def recur(cursor, tabs):
         kind = cursor.kind.name
@@ -25,6 +27,10 @@ def dump(cursor, tabstop=2, print=print):
             for child in cursor.get_children():
                 yield from recur(child, tabs)
             return
+        
+        if kind == 'MEMBER_REF_EXPR':
+            member_ref_exprs.append(cursor)
+
         name = spelling(cursor)
         yield tabs, kind, name, cursor.location.file
         for child in cursor.get_children():
@@ -44,27 +50,39 @@ def dump(cursor, tabstop=2, print=print):
     parens = ')' * (prev_tabs + 1)
     print(parens)
         
-
 def get_cursor(cmd):
     args = list(cmd.arguments)
     flags = args[1:-1]
     tu = index.parse(cmd.filename, flags)
-    return tu.cursor
+    return tu.cursor, tu
 
 def dump_like(pattern):
+    units = list()
     for cmd in cmds:
         if not re.search(pattern, cmd.filename):
             continue
-        c = get_cursor(cmd)
-        cc = list(c.get_children())
+        c, tu = get_cursor(cmd)
         dump(c)
         print()
+        units.append(tu)
+    return units 
+
+def record_decl(expr):
+    type = expr.type.get_canonical()
+    if type.kind == cindex.TypeKind.POINTER:
+        return type.get_pointee().get_declaration()
+    elif type.kind == cindex.TypeKind.RECORD:
+        return type.get_declaration()
 
 default_dir = Path(__file__).parent/'.build'
 
 parser = argparse.ArgumentParser(description='Print AST of matching files.')
 parser.add_argument('pattern', nargs='?', help='regex pattern for filenames')
 parser.add_argument('--directory', type=Path, default=default_dir)
+parser.add_argument('--client', nargs='?', default='.*',
+    help='regex pattern for files containing member references')
+parser.add_argument('--definition', nargs='?', default='.*',
+    help='regex pattern for files containing referred-to records')
 options = parser.parse_args()
 
 index = cindex.Index.create()
@@ -73,7 +91,26 @@ db = cindex.CompilationDatabase.fromDirectory(options.directory)
 cmds = list(db.getAllCompileCommands())
 
 if options.pattern is not None:
-    dump_like(options.pattern)
+    units = dump_like(options.pattern)
+
+refs = []
+for expr in member_ref_exprs:
+    if expr.location.file is None:
+        continue
+    if not re.search(options.client, expr.location.file.name):
+        continue
+    chillins = list(expr.get_children())
+    if len(chillins) != 1:
+        continue
+    record, = chillins
+    decl = record_decl(record)
+    if decl is None:
+        continue
+    if decl.location.file is None:
+        continue
+    if not re.search(options.definition, decl.location.file.name):
+        continue
+    refs.append((expr, decl)) 
 
 """How do I deal with UNEXPOSED_* cursor kinds?
 
@@ -88,4 +125,19 @@ should become
   (b baz))
 
 The children of an "unexposed" end up as their grandparent's children.
+"""
+
+"""Member ref thingy
+
+(member_ref_expr x
+  (paren_expr
+    (call_expr operator*
+      (decl_ref_expr p)
+      (decl_ref_expr operator*))))
+
+The pattern is
+
+(member_ref_expr <member_name>
+  <node_having_record_type>)
+
 """
