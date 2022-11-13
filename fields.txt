@@ -1,5 +1,8 @@
 ngx_array_t.elts
+ngx_array_t.nalloc
 ngx_array_t.nelts
+ngx_array_t.pool
+ngx_array_t.size
 ngx_buf_s.end
 ngx_buf_s.last
 ngx_buf_s.pos
@@ -23,6 +26,10 @@ ngx_connection_s.log
 ngx_cycle_s.conf_ctx
 ngx_cycle_s.log
 ngx_cycle_s.modules
+ngx_dir_t.info
+ngx_dir_t.type
+ngx_event_s.timer
+ngx_event_s.timer_set
 ngx_file_s.name
 ngx_file_s.offset
 ngx_http_conf_ctx_t.loc_conf
@@ -57,6 +64,14 @@ ngx_http_upstream_s.upstream
 ngx_http_upstream_srv_conf_s.host
 ngx_http_variable_s.data
 ngx_http_variable_s.get_handler
+ngx_list_part_s.elts
+ngx_list_part_s.nelts
+ngx_list_part_s.next
+ngx_list_t.last
+ngx_list_t.nalloc
+ngx_list_t.part
+ngx_list_t.pool
+ngx_list_t.size
 ngx_log_s.log_level
 ngx_module_s.commands
 ngx_module_s.ctx_index
@@ -66,6 +81,8 @@ ngx_pool_cleanup_s.data
 ngx_pool_cleanup_s.handler
 ngx_pool_cleanup_s.next
 ngx_pool_s.cleanup
+ngx_rbtree_node_s.key
+ngx_rbtree_node_s.left
 ngx_str_t.data
 ngx_str_t.len
 ngx_table_elt_s.key

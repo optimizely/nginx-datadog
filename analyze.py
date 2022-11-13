@@ -103,6 +103,13 @@ refs = []
 for expr in member_ref_exprs:
     if expr.location.file is None:
         continue
+    # TODO: Really it's the translation unit we want, not the expression
+    # location.  It could be some inline function in a header included by
+    # a source matching `options.client`.  This `if` excludes that.
+    # TODO: Now that I think about it, though, this just means that the
+    # `--client` command line argument is redundant.
+    # So, we can get the behavior we want by leaving `--client` with its
+    # default value of `.*`.
     if not re.search(options.client, expr.location.file.name):
         continue
     chillins = list(expr.get_children())
