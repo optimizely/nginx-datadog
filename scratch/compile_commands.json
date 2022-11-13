@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/home/david/src/nginx-datadog/scratch",
+  "command": "/usr/bin/cc  -fPIC -o /dev/null -c /home/david/src/nginx-datadog/scratch/scratch.cpp",
+  "file": "/home/david/src/nginx-datadog/scratch/scratch.cpp"
+}
+]

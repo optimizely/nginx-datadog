@@ -5,12 +5,6 @@ from clang import cindex
 from pathlib import Path
 import re
 
-index = cindex.Index.create()
-
-repo = Path(__file__).parent
-db = cindex.CompilationDatabase.fromDirectory(repo/'.build')
-cmds = list(db.getAllCompileCommands())
-
 def spelling(cursor):
     if cursor.kind.name == 'INTEGER_LITERAL':
         tokens = list(cursor.get_tokens())
@@ -66,9 +60,17 @@ def dump_like(pattern):
         dump(c)
         print()
 
+default_dir = Path(__file__).parent/'.build'
+
 parser = argparse.ArgumentParser(description='Print AST of matching files.')
 parser.add_argument('pattern', nargs='?', help='regex pattern for filenames')
+parser.add_argument('--directory', type=Path, default=default_dir)
 options = parser.parse_args()
+
+index = cindex.Index.create()
+
+db = cindex.CompilationDatabase.fromDirectory(options.directory)
+cmds = list(db.getAllCompileCommands())
 
 if options.pattern is not None:
     dump_like(options.pattern)
