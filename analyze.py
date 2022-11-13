@@ -56,13 +56,13 @@ def get_cursor(cmd):
     tu = index.parse(cmd.filename, flags)
     return tu.cursor, tu
 
-def dump_like(pattern):
+def dump_like(pattern, tabstop=2, print=print):
     units = list()
     for cmd in cmds:
         if not re.search(pattern, cmd.filename):
             continue
         c, tu = get_cursor(cmd)
-        dump(c)
+        dump(c, tabstop, print)
         print()
         units.append(tu)
     return units 
@@ -83,6 +83,8 @@ parser.add_argument('--client', nargs='?', default='.*',
     help='regex pattern for files containing member references')
 parser.add_argument('--definition', nargs='?', default='.*',
     help='regex pattern for files containing referred-to records')
+parser.add_argument('--no-print', action='store_true',
+    help="don't print the ASTs")
 options = parser.parse_args()
 
 index = cindex.Index.create()
@@ -90,8 +92,12 @@ index = cindex.Index.create()
 db = cindex.CompilationDatabase.fromDirectory(options.directory)
 cmds = list(db.getAllCompileCommands())
 
+def no_op(*args, **kwargs):
+    pass
+
 if options.pattern is not None:
-    units = dump_like(options.pattern)
+    printer = no_op if options.no_print else print
+    units = dump_like(options.pattern, print=printer)
 
 refs = []
 for expr in member_ref_exprs:
@@ -111,6 +117,17 @@ for expr in member_ref_exprs:
     if not re.search(options.definition, decl.location.file.name):
         continue
     refs.append((expr, decl)) 
+
+def show(ref):
+    field, decl = ref
+    return f'{decl.type.spelling}.{field.spelling}'
+
+fields = set(show(ref) for ref in refs)
+
+def print_fields():
+    for s in sorted(fields):
+        print(s)
+
 
 """How do I deal with UNEXPOSED_* cursor kinds?
 
