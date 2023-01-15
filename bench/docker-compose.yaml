@@ -1,0 +1,88 @@
+version: "3.9"
+services:
+
+  # Baseline Services
+  # -----------------
+  baseline-nginx:
+    build:
+      context: ./nginx
+      args:
+        BASE_IMAGE: ${BASELINE_BASE_IMAGE}
+        NGINX_TAG: ${BASELINE_NGINX_TAG}
+        NGINX_CONF: ${BASELINE_NGINX_CONF}
+        REPO: ${BASELINE_REPO}
+        REVISION: ${BASELINE_REVISION}
+    environment:
+      DD_AGENT_HOST: baseline-agent
+    depends_on:
+      - baseline-upstream
+      - baseline-agent
+  
+  baseline-upstream:
+    build:
+      context: ./upstream
+  
+  baseline-agent:
+    build:
+      context: ./agent
+
+  # Control Services
+  # ----------------
+  control-nginx:
+    build:
+      context: ./nginx
+      args:
+        BASE_IMAGE: ${CONTROL_BASE_IMAGE}
+        NGINX_TAG: ${CONTROL_NGINX_TAG}
+        NGINX_CONF: ${CONTROL_NGINX_CONF}
+        REPO: ${CONTROL_REPO}
+        REVISION: ${CONTROL_REVISION}
+    environment:
+      DD_AGENT_HOST: control-agent
+    depends_on:
+      - control-upstream
+      - control-agent
+  
+  control-upstream:
+    build:
+      context: ./upstream
+  
+  control-agent:
+    build:
+      context: ./agent
+
+  # Test Services
+  # -------------
+  test-nginx:
+    build:
+      context: ./nginx
+      args:
+        BASE_IMAGE: ${TEST_BASE_IMAGE}
+        NGINX_TAG: ${TEST_NGINX_TAG}
+        NGINX_CONF: ${TEST_NGINX_CONF}
+        REPO: ${TEST_REPO}
+        REVISION: ${TEST_REVISION}
+    environment:
+      DD_AGENT_HOST: test-agent
+    depends_on:
+      - test-upstream
+      - test-agent
+  
+  test-upstream:
+    build:
+      context: ./upstream
+  
+  test-agent:
+    build:
+      context: ./agent
+
+  # Client Service
+  # --------------
+  client:
+    build:
+      context: ./client
+    depends_on:
+      - baseline-nginx
+      - control-nginx
+      - test-nginx
+  

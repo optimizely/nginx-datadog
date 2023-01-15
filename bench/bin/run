@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+. ./defaults.conf.sh
+. ./conf.sh
+
+docker compose up --abort-on-container-exit --remove-orphans
