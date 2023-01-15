@@ -92,38 +92,81 @@ index = cindex.Index.create()
 db = cindex.CompilationDatabase.fromDirectory(options.directory)
 cmds = list(db.getAllCompileCommands())
 
+# TODO: thing here
+
 def no_op(*args, **kwargs):
     pass
 
-if options.pattern is not None:
-    printer = no_op if options.no_print else print
-    units = dump_like(options.pattern, print=printer)
+# if options.pattern is not None:
+#     printer = no_op if options.no_print else print
+#     units = dump_like(options.pattern, print=printer)
 
-refs = []
-for expr in member_ref_exprs:
+def visit(cmd):
+    member_refs = {}
+    ignore = object()
+    c, tu = get_cursor(cmd)
+    for node in c.walk_preorder():
+        print('looking at', node)
+        if node.kind.name.startswith('UNEXPOSED_'):
+            continue
+        parent = node.lexical_parent
+        if parent is None:
+            continue
+        kind = parent.kind.name
+        print('parent of', node, 'has kind', kind, '. Node has kind', node.kind.name)
+        if parent.kind == 'MEMBER_REF_EXPR':
+            already = member_refs.get(parent.hash)
+            if already is ignore:
+                # We previously marked to ignore this parent.
+                pass
+            elif already is not None:
+                # Parent has two or more children: we're not interested.
+                print('marking to ignore', parent.hash)
+                members_refs[parent.hash] = ignore
+            else:
+                # First child of this member_ref_expr node -- maybe it will
+                # be interesting (if it ends up having no siblings).
+                print('associating', node, 'with parent hash', parent.hash)
+                member_refs[parent.hash] = node
+    
+    for node in member_refs.values():
+        decl = record_decl(node)
+        if decl is None:
+            continue
+        if decl.location.file is None:
+            continue
+        if not re.search(options.definition, decl.location.file.name):
+            continue
+        yield decl, node
+
+
+for decl, node in visit(cmds[0]):
+    print((decl.spelling, node.spelling))
+
+
+"""TODO
+
+def extract_ref(expr):
     if expr.location.file is None:
-        continue
-    # TODO: Really it's the translation unit we want, not the expression
-    # location.  It could be some inline function in a header included by
-    # a source matching `options.client`.  This `if` excludes that.
-    # TODO: Now that I think about it, though, this just means that the
-    # `--client` command line argument is redundant.
-    # So, we can get the behavior we want by leaving `--client` with its
-    # default value of `.*`.
-    if not re.search(options.client, expr.location.file.name):
-        continue
+        return
     chillins = list(expr.get_children())
     if len(chillins) != 1:
-        continue
+        return
     record, = chillins
     decl = record_decl(record)
     if decl is None:
-        continue
+        return
     if decl.location.file is None:
-        continue
+        return
     if not re.search(options.definition, decl.location.file.name):
-        continue
-    refs.append((expr, decl)) 
+        return
+    return expr, decl 
+
+refs = []
+for expr in member_ref_exprs:
+    ref = extract_ref(expr)
+    if ref is not None:
+        refs.append(ref)
 
 def show(ref):
     field, decl = ref
@@ -134,7 +177,7 @@ fields = set(show(ref) for ref in refs)
 def print_fields():
     for s in sorted(fields):
         print(s)
-
+end TODO"""
 
 """How do I deal with UNEXPOSED_* cursor kinds?
 

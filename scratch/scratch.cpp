@@ -1,4 +1,4 @@
-#include <memory>
+// #include <memory>
 
 namespace ns {
 
@@ -19,6 +19,7 @@ bool do_thing(other::foo_t *foo, other::foo_t value) {
     return foo->x > value.x;
 }
 
+/*
 bool foo(std::unique_ptr<other::foo_t> p) {
     return p->x > 0;
 }
@@ -26,5 +27,6 @@ bool foo(std::unique_ptr<other::foo_t> p) {
 bool bar(std::unique_ptr<other::foo_t> p) {
     return (*p).x > 0;
 }
+*/
 
 } // namespace derp
