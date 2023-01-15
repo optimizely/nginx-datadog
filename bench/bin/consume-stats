@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+
+import json
+import subprocess
+
+# old shell script:
+"""
+unix_nanos() {
+    date +'%s*1000000000+%N' | bc
+}
+
+format='{"id": "{{ .ID }}", "name": "{{ .Name }}", "memory": { "raw": "{{ .MemUsage }}", "percent": "{{ .MemPerc }}"}, "cpu": "{{ .CPUPerc }}", "net_io": "{{ .NetIO }}", "block_io": "{{ .BlockIO }}"}'
+
+before=$(unix_nanos)
+samples=$(docker compose ps -q | xargs \
+    docker stats --no-trunc --no-stream --format "$format")
+after=$(unix_nanos)
+echo "$samples" | jq --slurp --compact-output "{samples: ., before: $before, after: $after}"
+"""
+
+# TODO
