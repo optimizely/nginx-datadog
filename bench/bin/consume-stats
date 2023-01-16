@@ -5,14 +5,15 @@ import json
 import shlex
 import signal
 import subprocess
+import sys
 import time
 
 
 def parse_size(raw):
-    # e.g. "0B", "34.54MiB", "4kB"
+    # e.g. "0B", "34.54MiB", "4kB", "2.3MB"
     assert raw[-1] == 'B'
     ch = raw[-2]
-    if ch == 'k':
+    if ch.lower() == 'k':
         return float(raw[:-2]) * 1024
     if ch == 'i':
         ch = raw[-3]
@@ -22,6 +23,8 @@ def parse_size(raw):
             return float(raw[:-3]) * 1024 * 1024
         assert ch == 'G'
         return float(raw[:-3]) * 1024 * 1024 * 1024
+    if ch.lower() == 'm':
+        return float(raw[:-2]) * 1024 * 1024
     return float(raw[:-1])
         
 
@@ -85,11 +88,14 @@ print('#', *columns, flush=True)
 # Print stats in a loop.
 format = '{"id": "{{ .ID }}", "memory": "{{ .MemUsage }}", "cpu": "{{ .CPUPerc }}", "net_io": "{{ .NetIO }}", "block_io": "{{ .BlockIO }}"}'
 while True:
-    records = {}
-    before = time.time_ns()
-    with output_from('docker', 'stats', '--no-trunc', '--no-stream', '--format', format) as output:
-        for line in output:
-            record = json.loads(line)
-            records[container_id_to_service[record['id']]] = record
-    after = time.time_ns()
-    print(format_stats(before, after, records), flush=True)
+    try:
+        records = {}
+        before = time.time_ns()
+        with output_from('docker', 'stats', '--no-trunc', '--no-stream', '--format', format) as output:
+            for line in output:
+                record = json.loads(line)
+                records[container_id_to_service[record['id']]] = record
+        after = time.time_ns()
+        print(format_stats(before, after, records), flush=True)
+    except Exception as error:
+        print(error, file=sys.stderr, flush=True)
