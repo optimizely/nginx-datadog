@@ -92,8 +92,9 @@ for path in options.file:
 
 def plot_command(path, xdivisor):
     file_path = Path(path).name
+    title = json.dumps(file_path.replace('@', '\\@'))
     file_path = json.dumps(file_path)
-    return f'{file_path} using ($1/{xdivisor}):2 title {file_path}'
+    return f'{file_path} using ($1/{xdivisor}):2 title {title}'
 
 script = f"""
 set title '{options.title}'
