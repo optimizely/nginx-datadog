@@ -7,4 +7,8 @@ cd "$(dirname "$0")/.."
 . ./defaults.conf.sh
 . ./conf.sh
 
-docker compose up --abort-on-container-exit --remove-orphans
+docker compose up --remove-orphans --detach --wait --build
+
+bin/consume-stats >output/stats &
+trap 'docker compose down' INT TERM
+wait

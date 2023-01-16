@@ -1,21 +1,95 @@
 #!/usr/bin/env python3
 
+import contextlib
 import json
+import shlex
+import signal
 import subprocess
+import time
 
-# old shell script:
-"""
-unix_nanos() {
-    date +'%s*1000000000+%N' | bc
-}
 
-format='{"id": "{{ .ID }}", "name": "{{ .Name }}", "memory": { "raw": "{{ .MemUsage }}", "percent": "{{ .MemPerc }}"}, "cpu": "{{ .CPUPerc }}", "net_io": "{{ .NetIO }}", "block_io": "{{ .BlockIO }}"}'
+def parse_size(raw):
+    # e.g. "0B", "34.54MiB", "4kB"
+    assert raw[-1] == 'B'
+    ch = raw[-2]
+    if ch == 'k':
+        return float(raw[:-2]) * 1024
+    if ch == 'i':
+        ch = raw[-3]
+        if ch == 'K':
+            return float(raw[:-3]) * 1024
+        if ch == 'M':
+            return float(raw[:-3]) * 1024 * 1024
+        assert ch == 'G'
+        return float(raw[:-3]) * 1024 * 1024 * 1024
+    return float(raw[:-1])
+        
 
-before=$(unix_nanos)
-samples=$(docker compose ps -q | xargs \
-    docker stats --no-trunc --no-stream --format "$format")
-after=$(unix_nanos)
-echo "$samples" | jq --slurp --compact-output "{samples: ., before: $before, after: $after}"
-"""
+def parse_memory_usage(raw):
+    # e.g. "1.367MiB / 15.39GiB"
+    used, _ = raw.split('/')
+    used = used.strip()
+    return parse_size(used)
 
-# TODO
+
+def parse_cpu_percentage(raw):
+    # e.g. "0.10%"
+    return float(raw[:-1])
+
+
+def parse_io(raw):
+    # e.g. "19.6kB / 7.89kB"
+    return tuple(parse_size(chunk.strip()) for chunk in raw.split('/'))
+
+
+def format_stats(before, after, records):
+    fields = [before, after]
+    for where in ('baseline', 'control', 'test'):
+        for who in ('nginx', 'upstream', 'agent'):
+            record = records[f'{where}-{who}']
+            fields.append(parse_memory_usage(record['memory']))
+            fields.append(parse_cpu_percentage(record['cpu']))
+            rate_in, rate_out = parse_io(record['net_io'])
+            fields.append(rate_in)
+            fields.append(rate_out)
+            rate_in, rate_out = parse_io(record['block_io'])
+            fields.append(rate_in)
+            fields.append(rate_out)
+    return ' '.join(str(field) for field in fields)
+
+@contextlib.contextmanager
+def output_from(*command):
+    with subprocess.Popen(command, stdout=subprocess.PIPE, encoding='utf8') as child:
+        yield child.stdout
+
+
+signal.signal(signal.SIGTERM, signal.SIG_DFL)
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+with output_from('docker', 'compose', 'ps', '--services') as output:
+    services = [line.strip() for line in output]
+
+container_id_to_service = {}
+for service in services:
+    with output_from('docker', 'compose', 'ps', '-q', service) as output:
+        container_id_to_service[output.read().strip()] = service
+
+# Print the column names as a (gnuplot) comment.
+columns = ['begin_unix_nanoseconds', 'end_unix_nanoseconds']
+for where in ('baseline', 'control', 'test'):
+    for who in ('nginx', 'upstream', 'agent'):
+        for what in ('resident_memory_bytes', 'cpu_percentage', 'network_input_bytes_per_second', 'network_output_bytes_per_second', 'block_device_input_bytes_per_second', 'block_device_output_bytes_per_second'):
+            columns.append(f'{where}-{who}-{what}')
+print('#', *columns, flush=True)
+
+# Print stats in a loop.
+format = '{"id": "{{ .ID }}", "memory": "{{ .MemUsage }}", "cpu": "{{ .CPUPerc }}", "net_io": "{{ .NetIO }}", "block_io": "{{ .BlockIO }}"}'
+while True:
+    records = {}
+    before = time.time_ns()
+    with output_from('docker', 'stats', '--no-trunc', '--no-stream', '--format', format) as output:
+        for line in output:
+            record = json.loads(line)
+            records[container_id_to_service[record['id']]] = record
+    after = time.time_ns()
+    print(format_stats(before, after, records), flush=True)

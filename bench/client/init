@@ -1,0 +1,13 @@
+#!/bin/sh
+
+>/var/output/client /usr/local/bin/hurl \
+    -follow \
+    -rate "$REQUESTS_PER_SECOND" \
+    'http://baseline-nginx/' \
+    'http://control-nginx' \
+    'http://test-nginx' &
+
+hurl_pid=$!
+
+trap 'kill "$hurl_pid"' TERM INT
+wait

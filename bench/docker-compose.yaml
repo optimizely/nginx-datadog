@@ -81,6 +81,10 @@ services:
   client:
     build:
       context: ./client
+    environment:
+      REQUESTS_PER_SECOND:
+    volumes:
+      - "./output:/var/output"
     depends_on:
       - baseline-nginx
       - control-nginx

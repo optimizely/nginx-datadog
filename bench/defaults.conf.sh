@@ -1,4 +1,6 @@
 
+export REQUESTS_PER_SECOND=10
+
 # Usually the baseline doesn't use tracing, and so the build of the
 # nginx-datadog module doesn't matter.
 # In general, though, the baseline might involve tracing, so the build of

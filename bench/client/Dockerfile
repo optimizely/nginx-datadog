@@ -6,6 +6,6 @@ run go mod init hurl && go get && go build -o /usr/local/bin/hurl
 
 from alpine:3.17
 copy --from=build /usr/local/bin/hurl /usr/local/bin/hurl
-# TODO: copy init script and use that instead of hurl directly
-entrypoint ["/usr/local/bin/hurl"]
-cmd ["-follow", "http://baseline-nginx/", "http://control-nginx", "http://test-nginx"]
+
+copy ./init /usr/local/bin/init
+entrypoint ["/usr/local/bin/init"]
