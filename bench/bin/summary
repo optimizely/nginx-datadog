@@ -12,6 +12,7 @@ def parse_options():
 
     parser.add_argument('--cutoff', type=int)
     parser.add_argument('--floor', type=int)
+    parser.add_argument('--significance', action='store_true')
 
     parser.add_argument('file', nargs='+')
 
@@ -28,8 +29,10 @@ def parse_path(path):
 
 options = parse_options()
 
-for path in options.file:
-    path, column = parse_path(path)
+values_by_path = {}
+
+for arg in options.file:
+    path, column = parse_path(arg)
     values = []
     with open(path) as file:
         for line in file:
@@ -46,6 +49,9 @@ for path in options.file:
                 continue
             values.append(value)
 
+    if options.significance:
+        values_by_path[arg] = values
+
     print(f'{path}@{column}')
     for stat in 'mean median mode pstdev stdev'.split():
         print(f'\t{stat}\t', getattr(statistics, stat)(values))
@@ -55,3 +61,18 @@ for path in options.file:
     print('\tcount\t', len(values))
     print('\t√c̅o̅u̅n̅t̅\t', math.sqrt(len(values)))
 
+if options.significance:
+    pairs = frozenset(frozenset([left, right]) for left in options.file for right in options.file if left != right)
+    for complement, sample in pairs:
+        print()
+        print(f'Null hypothesis: "{complement}" and "{sample}" have the same mean.')
+        population = values_by_path[complement] + values_by_path[sample]
+        pstdev = statistics.pstdev(population)
+        pmean = statistics.mean(population)
+        smean = statistics.mean(values_by_path[sample])
+        z = (smean - pmean) / (pstdev / math.sqrt(len(values_by_path[sample])))
+        print(f'\tAlternative hypothesis: "{sample}" has the lower mean.')
+        p = statistics.NormalDist().cdf(z)
+        print(f'\t\tz = {z}, p = {p}\t{"✅" if p < 0.01 else ""}')
+        print(f'\tAlternative hypothesis: "{sample}" has the higher mean.')
+        print(f'\t\tz = {z}, p = {1 - p}\t{"✅" if 1 - p < 0.01 else ""}')
