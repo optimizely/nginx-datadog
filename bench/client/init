@@ -1,13 +1,8 @@
 #!/bin/sh
 
->/var/output/client /usr/local/bin/hurl \
-    -follow \
-    -rate "$REQUESTS_PER_SECOND" \
-    'http://baseline-nginx/' \
-    'http://control-nginx' \
-    'http://test-nginx' &
+>"/var/output/$OUTPUT" /usr/local/bin/spam "$ENDPOINT"
 
-hurl_pid=$!
+spam_pid=$!
 
-trap 'kill "$hurl_pid"' TERM INT
+trap 'kill "$spam_pid"' TERM INT
 wait
