@@ -18,6 +18,7 @@ def parse_options():
     parser.add_argument('--xdivisor', type=int, default=1)
     parser.add_argument('--bins', type=int, default=100)
     parser.add_argument('--cutoff', type=int)
+    parser.add_argument('--floor', type=int)
 
     parser.add_argument('file', nargs='+')
 
@@ -51,6 +52,8 @@ for path in options.file:
                 continue
             if options.cutoff is not None and value > options.cutoff:
                 continue
+            if options.floor is not None and value < options.floor:
+                continue
             if min_value is None or value < min_value:
                 min_value = value
             if max_value is None or value > max_value:
@@ -75,6 +78,8 @@ for path in options.file:
             except IndexError:
                 continue
             if options.cutoff is not None and value > options.cutoff:
+                continue
+            if options.floor is not None and value < options.floor:
                 continue
             bin_index = int((value - min_value) / (max_value + 1 - min_value) * len(bins))
             bins[bin_index] += 1
