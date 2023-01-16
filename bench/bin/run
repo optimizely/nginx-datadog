@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 docker compose up --remove-orphans --detach --wait --build
 
 bin/consume-stats >output/stats &
-trap 'docker compose down' INT TERM
+trap 'docker compose down; docker compose logs >output/logs' INT TERM
 
 printf 'Running.  See output/stats and output/client.\n'
 

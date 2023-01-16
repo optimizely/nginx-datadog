@@ -12,7 +12,6 @@ BASELINE_REVISION=david.goffredo/benchmarks
 CONTROL_REVISION=$BASELINE_REVISION
 TEST_REVISION=$BASELINE_REVISION
 
-REQUESTS_PER_SECOND=20
 BASELINE_NGINX_CONF=$(cat <<'END_CONF'
 load_module modules/ngx_http_datadog_module.so;
 

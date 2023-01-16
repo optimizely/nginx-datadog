@@ -17,14 +17,26 @@ services:
     depends_on:
       - baseline-upstream
       - baseline-agent
-  
+
   baseline-upstream:
     build:
       context: ./upstream
-  
+
   baseline-agent:
     build:
       context: ./agent
+
+  baseline-client:
+    build:
+      context: ./client
+    environment:
+      DELAY_MILLISECONDS:
+      ENDPOINT: http://baseline-nginx/
+      OUTPUT: /var/output/baseline
+    volumes:
+      - "./output:/var/output"
+    depends_on:
+      - baseline-nginx
 
   # Control Services
   # ----------------
@@ -42,14 +54,26 @@ services:
     depends_on:
       - control-upstream
       - control-agent
-  
+
   control-upstream:
     build:
       context: ./upstream
-  
+
   control-agent:
     build:
       context: ./agent
+
+  control-client:
+    build:
+      context: ./client
+    environment:
+      DELAY_MILLISECONDS:
+      ENDPOINT: http://control-nginx/
+      OUTPUT: /var/output/control
+    volumes:
+      - "./output:/var/output"
+    depends_on:
+      - control-nginx
 
   # Test Services
   # -------------
@@ -67,26 +91,23 @@ services:
     depends_on:
       - test-upstream
       - test-agent
-  
+
   test-upstream:
     build:
       context: ./upstream
-  
+
   test-agent:
     build:
       context: ./agent
 
-  # Client Service
-  # --------------
-  client:
+  test-client:
     build:
       context: ./client
     environment:
-      REQUESTS_PER_SECOND:
+      DELAY_MILLISECONDS:
+      ENDPOINT: http://test-nginx/
+      OUTPUT: /var/output/test
     volumes:
       - "./output:/var/output"
     depends_on:
-      - baseline-nginx
-      - control-nginx
       - test-nginx
-  

@@ -1,6 +1,11 @@
 #!/bin/sh
 
->"/var/output/$OUTPUT" /usr/local/bin/spam "$ENDPOINT"
+if [ "$OUTPUT" = '' ]; then
+    >&2 printf 'Missing OUTPUT environment variable.\n'
+    exit 1
+fi
+
+>"$OUTPUT" /usr/local/bin/spam
 
 spam_pid=$!
 
