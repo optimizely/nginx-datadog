@@ -82,7 +82,7 @@ for service in services:
 columns = ['begin_unix_nanoseconds', 'end_unix_nanoseconds']
 for where in ('baseline', 'control', 'test'):
     for who in ('nginx', 'upstream', 'agent'):
-        for what in ('resident_memory_bytes', 'cpu_percentage', 'network_input_bytes_per_second', 'network_output_bytes_per_second', 'block_device_input_bytes_per_second', 'block_device_output_bytes_per_second'):
+        for what in ('resident_memory_bytes', 'cpu_percentage', 'network_input_bytes', 'network_output_bytes', 'block_device_input_bytes', 'block_device_output_bytes'):
             columns.append(f'{where}-{who}-{what}')
 print('#', *columns, flush=True)
 

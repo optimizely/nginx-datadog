@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import decimal
 import json
 import os
 from pathlib import Path
@@ -15,10 +16,10 @@ def parse_options():
 
     parser.add_argument('--title', default='Histogram')
     parser.add_argument('--xlabel', default='value')
-    parser.add_argument('--xdivisor', type=int, default=1)
+    parser.add_argument('--xdivisor', type=decimal.Decimal, default=1)
     parser.add_argument('--bins', type=int, default=100)
-    parser.add_argument('--cutoff', type=int)
-    parser.add_argument('--floor', type=int)
+    parser.add_argument('--cutoff', type=decimal.Decimal)
+    parser.add_argument('--floor', type=decimal.Decimal)
 
     parser.add_argument('file', nargs='+')
 
@@ -47,7 +48,7 @@ for path in options.file:
             if len(line) == 0 or line[0] == '#':
                 continue
             try:
-                value = int(line.split()[column - 1])
+                value = decimal.Decimal(line.split()[column - 1])
             except IndexError:
                 continue
             if options.cutoff is not None and value > options.cutoff:
@@ -74,7 +75,7 @@ for path in options.file:
             if len(line) == 0 or line[0] == '#':
                 continue
             try:
-                value = int(line.split()[column - 1])
+                value = decimal.Decimal(line.split()[column - 1])
             except IndexError:
                 continue
             if options.cutoff is not None and value > options.cutoff:

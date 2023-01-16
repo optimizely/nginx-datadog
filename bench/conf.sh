@@ -13,4 +13,25 @@ CONTROL_REVISION=$BASELINE_REVISION
 TEST_REVISION=$BASELINE_REVISION
 
 REQUESTS_PER_SECOND=20
-BASELINE_NGINX_CONF=$CONTROL_NGINX_CONF
+BASELINE_NGINX_CONF=$(cat <<'END_CONF'
+load_module modules/ngx_http_datadog_module.so;
+
+error_log stderr info;
+
+events {
+  worker_connections  1024;
+}
+
+http {
+  access_log /dev/null;
+
+  server {
+    listen 80;
+
+    location / {
+      proxy_pass http://baseline-upstream;
+    }
+  }
+}
+END_CONF
+)

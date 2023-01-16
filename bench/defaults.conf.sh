@@ -10,7 +10,7 @@ export BASELINE_BASE_IMAGE="datadog/docker-library:nginx-datadog-build-$BASELINE
 export BASELINE_REPO='https://github.com/DataDog/nginx-datadog'
 export BASELINE_REVISION='master'
 export BASELINE_NGINX_CONF=$(cat <<'END_CONF'
-error_log stderr;
+error_log stderr info;
 
 events {
   worker_connections  1024;
@@ -37,7 +37,7 @@ export CONTROL_REVISION=$BASELINE_REVISION
 export CONTROL_NGINX_CONF=$(cat <<'END_CONF'
 load_module modules/ngx_http_datadog_module.so;
 
-error_log stderr;
+error_log stderr info;
 
 events {
   worker_connections  1024;
@@ -64,7 +64,7 @@ export TEST_REVISION=$BASELINE_REVISION
 export TEST_NGINX_CONF=$(cat <<'END_CONF'
 load_module modules/ngx_http_datadog_module.so;
 
-error_log stderr;
+error_log stderr info;
 
 events {
   worker_connections  1024;
