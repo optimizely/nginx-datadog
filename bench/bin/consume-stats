@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 
 
 def parse_size(raw):
@@ -26,7 +27,7 @@ def parse_size(raw):
     if ch.lower() == 'm':
         return float(raw[:-2]) * 1024 * 1024
     return float(raw[:-1])
-        
+
 
 def parse_memory_usage(raw):
     # e.g. "1.367MiB / 15.39GiB"
@@ -91,11 +92,12 @@ while True:
     try:
         records = {}
         before = time.time_ns()
-        with output_from('docker', 'stats', '--no-trunc', '--no-stream', '--format', format) as output:
+        containers = list(container_id_to_service.keys())
+        with output_from('docker', 'stats', '--no-trunc', '--no-stream', '--format', format, *containers) as output:
             for line in output:
                 record = json.loads(line)
                 records[container_id_to_service[record['id']]] = record
         after = time.time_ns()
         print(format_stats(before, after, records), flush=True)
-    except Exception as error:
-        print(error, file=sys.stderr, flush=True)
+    except Exception:
+        traceback.print_exc()
