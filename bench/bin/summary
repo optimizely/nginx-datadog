@@ -37,7 +37,7 @@ for path in options.file:
             if len(line) == 0 or line[0] == '#':
                 continue
             try:
-                value = int(line.split()[column])
+                value = int(line.split()[column - 1])
             except IndexError:
                 continue
             if options.cutoff is not None and value > options.cutoff:
