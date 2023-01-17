@@ -1,7 +1,8 @@
 version: "3.2"
 services:
-    
-  # `nginx` TODO
+
+  # `nginx` is based on one of the nginx DockerHub images, and additionally has
+  # a build of the nginx-datadog tracing module installed.
   nginx:
     build:
       context: ./services/nginx
