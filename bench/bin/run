@@ -5,7 +5,9 @@ set -e
 cd "$(dirname "$0")/.."
 
 . ./defaults.conf.sh
-. ./conf.sh
+if [ -f ./conf.sh ]; then
+    . ./conf.sh
+fi
 
 docker compose up --remove-orphans --detach --wait --build
 

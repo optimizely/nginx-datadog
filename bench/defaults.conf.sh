@@ -1,5 +1,5 @@
 
-export DELAY_MILLISECONDS=20
+export DELAY_MILLISECONDS=50
 
 # Usually the baseline doesn't use tracing, and so the build of the
 # nginx-datadog module doesn't matter.
