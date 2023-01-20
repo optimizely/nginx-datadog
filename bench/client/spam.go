@@ -24,8 +24,18 @@ func main() {
 	}
 	delay := time.Millisecond * time.Duration(delayMilliseconds)
 
+	// Hang on to the first "before" timestamp so that we can produce a column
+	// of "seconds since start," which is nice for display in graphs.
+	gotFirst := false
+	var first time.Time
+
 	for {
 		before := time.Now()
+		if !gotFirst {
+			first = before
+			gotFirst = true
+		}
+
 		response, err := http.Get(endpoint)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -38,7 +48,7 @@ func main() {
 			continue
 		}
 		after := time.Now()
-		fmt.Println(after.Sub(before).Nanoseconds(), before.UnixNano(), after.UnixNano())
+		fmt.Println(after.Sub(before).Nanoseconds(), before.UnixNano(), after.UnixNano(), before.Unix()-first.Unix())
 		time.Sleep(delay)
 	}
 }

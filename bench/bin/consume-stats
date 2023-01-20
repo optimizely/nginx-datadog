@@ -59,6 +59,7 @@ def format_stats(before, after, records):
             rate_in, rate_out = parse_io(record['block_io'])
             fields.append(rate_in)
             fields.append(rate_out)
+            fields.append(record['threads'])
     return ' '.join(str(field) for field in fields)
 
 @contextlib.contextmanager
@@ -82,12 +83,12 @@ for service in services:
 columns = ['begin_unix_nanoseconds', 'end_unix_nanoseconds']
 for where in ('baseline', 'control', 'test'):
     for who in ('nginx', 'upstream', 'agent'):
-        for what in ('resident_memory_bytes', 'cpu_percentage', 'network_input_bytes', 'network_output_bytes', 'block_device_input_bytes', 'block_device_output_bytes'):
+        for what in ('resident_memory_bytes', 'cpu_percentage', 'network_input_bytes', 'network_output_bytes', 'block_device_input_bytes', 'block_device_output_bytes', 'threads'):
             columns.append(f'{where}-{who}-{what}')
 print('#', *columns, flush=True)
 
 # Print stats in a loop.
-format = '{"id": "{{ .ID }}", "memory": "{{ .MemUsage }}", "cpu": "{{ .CPUPerc }}", "net_io": "{{ .NetIO }}", "block_io": "{{ .BlockIO }}"}'
+format = '{"id": "{{ .ID }}", "memory": "{{ .MemUsage }}", "cpu": "{{ .CPUPerc }}", "net_io": "{{ .NetIO }}", "block_io": "{{ .BlockIO }}", "threads": {{ .PIDs }}}'
 while True:
     try:
         records = {}

@@ -5,7 +5,7 @@ if [ "$OUTPUT" = '' ]; then
     exit 1
 fi
 
->"$OUTPUT" /usr/local/bin/spam
+>"$OUTPUT" /usr/local/bin/spam &
 
 spam_pid=$!
 
