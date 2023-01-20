@@ -35,7 +35,6 @@ dd::Expected<dd::Tracer> TracingLibrary::make_tracer(
   dd::TracerConfig config;
   config.defaults.service = "dd-trace-cpp-nginx";
   config.logger = std::make_shared<NgxLogger>();
-  config.agent.event_scheduler = std::make_shared<NgxEventScheduler>();
 
   auto final_config = dd::finalize_config(config);
   if (!final_config) {
