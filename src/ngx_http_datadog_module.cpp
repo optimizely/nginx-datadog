@@ -191,7 +191,7 @@ static ngx_command_t datadog_commands[] = {
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       nullptr),
-    
+
     { ngx_string("datadog_load_tracer"),
        NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_CONF_TAKE2,
        plugin_loading_deprecated,
@@ -364,7 +364,7 @@ static ngx_int_t datadog_init_worker(ngx_cycle_t *cycle) noexcept try {
 
 static void datadog_exit_worker(ngx_cycle_t *cycle) noexcept {
   // If the `dd::Tracer` singleton has been set (in `datadog_init_worker`),
-  // destroy it. TODO clean shutdown?
+  // destroy it.
   reset_global_tracer();
 }
 

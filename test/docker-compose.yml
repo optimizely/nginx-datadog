@@ -1,6 +1,6 @@
 version: "3.2"
 services:
-    
+
   # `nginx` is the service that loads the Datadog module and is sent requests
   # to probe the module's behavior.
   nginx:
@@ -13,6 +13,8 @@ services:
     environment:
       - DD_ENV=prod
       - DD_AGENT_HOST=agent
+    cap_add:
+      - SYS_PTRACE
     depends_on:
       - http
       - fastcgi

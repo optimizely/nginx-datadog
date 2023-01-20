@@ -10,5 +10,5 @@ RUN /tmp/install_tools.sh
 
 COPY ngx_http_datadog_module.so /usr/lib/nginx/modules
 
-ENTRYPOINT ["nginx"]
+ENTRYPOINT ["nginx-debug"]
 CMD ["-g", "daemon off;"]

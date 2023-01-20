@@ -192,7 +192,7 @@ void RequestTracing::on_exit_block(
     // name again.
     //
     // See on_log_request below
-    span_->set_operation_name(
+    span_->set_name(
         get_loc_operation_name(request_, core_loc_conf_, loc_conf_));
     span_->set_end_time(finish_timestamp);
   } else {
@@ -216,7 +216,7 @@ void RequestTracing::on_log_request() {
   // pointed to by the datadog_operation_name directive
   auto core_loc_conf = static_cast<ngx_http_core_loc_conf_t *>(
       ngx_http_get_module_loc_conf(request_, ngx_http_core_module));
-  request_span_->set_operation_name(
+  request_span_->set_name(
       get_request_operation_name(request_, core_loc_conf, loc_conf_));
 
   // Note: At this point, we could run an `NginxScript` to interrogate the
