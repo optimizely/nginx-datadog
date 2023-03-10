@@ -10,10 +10,10 @@ services:
         BASE_IMAGE: ${BASE_IMAGE}
     environment:
       - DD_AGENT_HOST=agent
+      - DD_SERVICE=nginx-datadog-example
     depends_on:
       - http
-      - fastcgi
-      - grpc
+      - myauth
       - agent
 
   # `agent` is the Datadog Agent to which traces are sent.
@@ -45,27 +45,15 @@ services:
     depends_on:
       - agent
 
-  # `fastcgi` is a FastCGI server that is reverse proxied by `nginx`.
-  fastcgi:
+  # `myauth` is like `http`, but with a different service name.
+  myauth:
     build:
-      context: ./services/fastcgi
+      context: ./services/http
       dockerfile: ./Dockerfile
     environment:
       - DD_ENV=prod
       - DD_AGENT_HOST=agent
-      - DD_SERVICE=fastcgi
-    depends_on:
-      - agent
-
-  # `grpc` is a gRPC server that is reverse proxied by `nginx`.
-  grpc:
-    build:
-      context: ./services/grpc
-      dockerfile: ./Dockerfile
-    environment:
-      - DD_ENV=prod
-      - DD_AGENT_HOST=agent
-      - DD_SERVICE=grpc
+      - DD_SERVICE=myauth
     depends_on:
       - agent
 

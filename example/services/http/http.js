@@ -19,12 +19,14 @@ const requestListener = function (request, response) {
     "headers": request.headers
   }, null, 2);
   console.log(responseBody);
+
+  response.writeHead(parseInt(request.headers['x-response-status'] || '200') || 200);
   response.end(responseBody);
 }
 
 console.log('http node.js web server is running');
 const server = http.createServer(requestListener);
-server.listen(8080);
+server.listen(80);
 
 process.on('SIGTERM', function () {
   console.log('Received SIGTERM');

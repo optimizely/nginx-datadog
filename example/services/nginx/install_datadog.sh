@@ -48,14 +48,17 @@ else
     exit 3
 fi
 
-get_latest_release() {
-  curl --silent "https://api.github.com/repos/$1/releases/latest" | jq --raw-output .tag_name
-}
+# get_latest_release() {
+#   curl --silent "https://api.github.com/repos/$1/releases/latest" | jq --raw-output .tag_name
+# }
 
-RELEASE_TAG=$(get_latest_release DataDog/nginx-datadog)
+# RELEASE_TAG=$(get_latest_release DataDog/nginx-datadog)
+RELEASE_TAG=v0.4.0
 
-base_image_without_colons=$(echo "$BASE_IMAGE" | tr ':' '_')
-tarball="$base_image_without_colons-ngx_http_datadog_module.so.tgz"
+# TODO: Naming convention has changed since then.
+# base_image_without_colons=$(echo "$BASE_IMAGE" | tr ':' '_')
+# tarball="$base_image_without_colons-ngx_http_datadog_module.so.tgz"
+tarball='1.22.1-alpine-ngx_http_datadog_module.so.tgz'
 wget "https://github.com/DataDog/nginx-datadog/releases/download/$RELEASE_TAG/$tarball"
 tar -xzf "$tarball" -C "$nginx_modules_path"
 rm "$tarball"
