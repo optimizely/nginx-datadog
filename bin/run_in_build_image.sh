@@ -1,6 +1,7 @@
 #!/bin/sh
 
 repo=$(dirname "$0")/..
+# shellcheck disable=SC1091
 . "$repo/nginx-version-info"
 base_image_without_colons=$(echo "$BASE_IMAGE" | tr ':' '_')
 built_image="nginx-datadog-build-$base_image_without_colons"
