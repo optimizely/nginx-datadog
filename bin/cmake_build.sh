@@ -7,5 +7,5 @@ build_dir=${1:-.build}
 
 mkdir -p "$build_dir"
 cd "$build_dir"
-cmake -DBUILD_TESTING=OFF ..
+cmake ..
 make -j "$(nproc)"

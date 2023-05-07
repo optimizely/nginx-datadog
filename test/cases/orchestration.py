@@ -4,6 +4,7 @@ from . import formats
 from .lazy_singleton import LazySingleton
 
 import contextlib
+import datetime
 import faulthandler
 import json
 import os
@@ -131,7 +132,10 @@ def docker_compose_ps(service):
                             env=child_env(),
                             encoding='utf8',
                             check=True)
-    return result.stdout.strip()
+    container_id = result.stdout.strip()
+    if not container_id:
+        raise Exception(f"{command} didn't produce any output")
+    return container_id
 
 
 def docker_top(container, verbose_output):
@@ -165,7 +169,7 @@ def nginx_worker_pids(nginx_container, verbose_output):
                if re.match(r'\s*nginx: worker process', cmd))
 
 
-def with_retries(max_attempts, thunk):
+def with_retries(max_attempts, delay_between, thunk):
     assert max_attempts > 0
     while True:
         try:
@@ -174,6 +178,7 @@ def with_retries(max_attempts, thunk):
             max_attempts -= 1
             if max_attempts == 0:
                 raise
+        time.sleep(delay_between.total_seconds())
 
 
 def ready_services():
@@ -240,7 +245,8 @@ def docker_compose_up(on_ready, logs, verbose_file):
                         print('Not all services are ready.  Going to wait',
                               poll_seconds,
                               'seconds',
-                              file=verbose_file)
+                              file=verbose_file,
+                              flush=True)
                         time.sleep(poll_seconds)
                 on_ready({'containers': containers})
             elif kind == 'finish_create_container':
@@ -255,7 +261,9 @@ def docker_compose_up(on_ready, logs, verbose_file):
                 # corresponds to `service` (even though it just told us that
                 # the container was created).  So, we retry a few times.
                 containers[service] = with_retries(
-                    5, lambda: docker_compose_ps(service))
+                    max_attempts=5,
+                    delay_between=datetime.timedelta(milliseconds=100),
+                    thunk=lambda: docker_compose_ps(service))
             elif kind == 'service_log':
                 # Got a line of logging from some service.  Push it onto the
                 # appropriate queue for consumption by tests.
@@ -386,6 +394,10 @@ class Orchestration:
         Run `docker-compose down` to bring down the orchestrated services.
         Join the log-parsing thread.
         """
+        # TODO: Extract coverage files
+        command = docker_compose_command('cp', 'nginx:/tmp/coverage', '/tmp/coverage/docker')
+        subprocess.run(command, env=child_env(), encoding='utf8', check=False)
+        # end TODO
         command = docker_compose_command('down', '--remove-orphans')
         with print_duration('Bringing down all services', self.verbose):
             with subprocess.Popen(

@@ -12,7 +12,7 @@ apk add build-base libtool autoconf wget tar curl git openssh bash
 apk add coreutils
 
 # nginx uses perl-compatible regular expressions (PCRE) and zlib (for gzip).
-apk add pcre-dev zlib-dev
+apk add pcre-dev pcre2-dev zlib-dev
 
 # Build a recent cmake from source.  dd-trace-cpp requires a version more recent than
 # what is commonly packaged.

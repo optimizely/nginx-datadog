@@ -22,6 +22,12 @@ set(CMAKE_CXX_STANDARD 17)
 # <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=108088>.
 add_compile_options(-Wno-error=free-nonheap-object)
 
+# Build for code coverage of integration tests.
+if (BUILD_COVERAGE)
+  add_compile_options(-g -O0 -fprofile-arcs -ftest-coverage -fprofile-dir=/tmp/coverage)
+  set(COVERAGE_LIBRARIES gcov)
+endif()
+
 # Nginx module boilerplate (code within the nginx repository)
 include(./nginx-module.cmake)
 
@@ -45,4 +51,4 @@ add_dependencies(ngx_http_datadog_module
     dd_trace_cpp-objects
 )
 
-target_link_libraries(ngx_http_datadog_module dd_trace_cpp-objects -static-libstdc++ -static-libgcc)
+target_link_libraries(ngx_http_datadog_module dd_trace_cpp-objects -static-libstdc++ -static-libgcc ${COVERAGE_LIBRARIES})

@@ -21,5 +21,9 @@ COPY ngx_http_datadog_module.so ${NGINX_MODULES_PATH}
 ENTRYPOINT ["nginx"]
 CMD ["-g", "daemon off;"]
 
+# Create a directory for code coverage counters, in case the module was built
+# with coverage.
+RUN mkdir /tmp/coverage
+
 # Override the default configuration with a minimal one.
 COPY ./nginx.conf /etc/nginx/nginx.conf
