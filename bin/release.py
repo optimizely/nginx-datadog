@@ -3,6 +3,7 @@
 """
 
 import argparse
+from collections import defaultdict
 import itertools
 import json
 import os
@@ -233,15 +234,34 @@ print(f'sleeping for {delay_seconds} seconds...')
 time.sleep(delay_seconds)
 
 # Fetch the pipeline's information.  This will contain its workflows.
-# We're looking for exactly one "build-and-test-all" workflow.
+# We're looking for exactly one "build-and-test-all" workflow, but
+# there might be more than one.
+# If there is more than one, this likely means that the workflow failed and
+# we re-ran it. It might have even succeeded subsequently.
+# So, if there is only one workflow, use it.
+# If there is more than one workflow, then look for one that has succeeded.
+# Otherwise, look for one that is running.
+# Otherwise report an error.
 workflows = send_ci_request_paged(f'/pipeline/{pipeline_id}/workflow')
 workflow = [wf for wf in workflows if wf['name'] == 'build-and-test-all']
-if len(workflow) != 1:
-    raise Exception(
-        f'Workflows contains the wrong number of "build-and-test-all".  Expected 1 but got {len(workflow)}: {workflows}'
-    )
-workflow = workflow[0]
+if len(workflow) == 1:
+    workflow = workflow[0]
+else:
+    by_status = defaultdict(list)
+    for wf in workflow:
+        by_status[wf['status']].append(wf)
+
+    if len(by_status['success']) > 0:
+        workflow = by_status['success'][0]
+    elif len(by_status['running']) > 0:
+        workflow = by_status['running'][0]
+    else:
+        raise Exception(
+            f'Workflows contains the wrong number of running/successful "build-and-test-all".  Expected >=1 but got zero: {workflows}'
+        )
+
 workflow_id = workflow['id']
+print(f'Using workflow having ID {workflow_id} and status {json.dumps(workflow["status"])}.')
 
 
 def download_file(url, destination):

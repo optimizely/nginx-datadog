@@ -22,6 +22,7 @@ services:
   agent:
     volumes:
       - '/var/run/docker.sock:/var/run/docker.sock:ro'
+      - '/run/user:/run/user:ro'
       - '/proc/:/host/proc/:ro'
       - '/sys/fs/cgroup/:/host/sys/fs/cgroup:ro'
     environment:
@@ -31,6 +32,7 @@ services:
       - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true
       - DD_CONTAINER_EXCLUDE=name:datadog-agent
       - DD_LOG_LEVEL=ERROR
+      - DOCKER_HOST
     image: 'datadog/agent'
 
   # `http` is an HTTP server that is reverse proxied by `nginx`.
