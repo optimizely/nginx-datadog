@@ -8,6 +8,10 @@ cmake_minimum_required(VERSION 3.7)
 
 project(ngx_http_datadog_module)
 
+if(NOT NGINX_DIR)
+  message(FATAL_ERROR "Missing nginx source directory. Use -DNGINX_DIR")
+endif()
+
 # Prefer the build mode "release with debug info" if another mode wasn't
 # specified.
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -45,4 +49,14 @@ add_dependencies(ngx_http_datadog_module
     dd_trace_cpp-objects
 )
 
-target_link_libraries(ngx_http_datadog_module dd_trace_cpp-objects -static-libstdc++ -static-libgcc)
+# Remove the prefix to match NGINX convention
+set_property(TARGET ngx_http_datadog_module PROPERTY PREFIX "")
+
+if(APPLE)
+  set_property(TARGET ngx_http_datadog_module PROPERTY SUFFIX ".so")
+  target_link_options(ngx_http_datadog_module PRIVATE -undefined dynamic_lookup)
+  target_link_libraries(ngx_http_datadog_module dd_trace_cpp-objects)
+else()
+  target_link_libraries(ngx_http_datadog_module dd_trace_cpp-objects -static-libstdc++ -static-libgcc)
+endif()
+
