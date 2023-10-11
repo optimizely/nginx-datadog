@@ -393,6 +393,20 @@ class Orchestration:
         Run `docker compose down` to bring down the orchestrated services.
         Join the log-parsing thread.
         """
+        # TODO: hacking
+        command = docker_compose_command('stop')
+        subprocess.run(command,
+                       stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL,
+                       env=child_env(),
+                       check=True,
+                       encoding='utf8')
+        command = docker_compose_command('cp', 'nginx:/tmp/race-debug.log', '/tmp/race-debug.log')
+        subprocess.run(command,
+                       env=child_env(),
+                       check=True,
+                       encoding='utf8')
+        # end TODO
         command = docker_compose_command('down', '--remove-orphans')
         with print_duration('Bringing down all services', self.verbose):
             with subprocess.Popen(
