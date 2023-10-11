@@ -129,6 +129,9 @@ jobs:
     - store_artifacts:
         path: test/logs/test.log
         destination: test.log
+    - store_artifacts:
+        path: /tmp/race-debug.log
+        destination: race-debug.log
     - run: |
         if ! [ -f .tests-succeeded ]; then
           cat test/logs/test.log
