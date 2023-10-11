@@ -404,7 +404,6 @@ class Orchestration:
         command = docker_compose_command('cp', 'nginx:/tmp/race-debug.log', '/tmp/race-debug.log')
         subprocess.run(command,
                        env=child_env(),
-                       check=True,
                        encoding='utf8')
         # end TODO
         command = docker_compose_command('down', '--remove-orphans')
