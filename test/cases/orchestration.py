@@ -295,12 +295,20 @@ def docker_compose_services():
     return result.stdout.split()
 
 
-def curl(url, headers, stderr=None):
+def curl(url, headers, stderr=None, post_file=None):
 
     def header_args():
         for name, value in headers.items():
             yield '--header'
             yield f'{name}: {value}'
+
+    def post_args():
+        if post_file is None:
+            return
+        yield '--request'
+        yield 'POST'
+        yield '--data-binary'
+        yield f'@{post_file}'
 
     # "curljson.sh" is a script that lives in the "client" docker compose
     # service.  It's a wrapper around "curl" that outputs a JSON object of
@@ -312,7 +320,7 @@ def curl(url, headers, stderr=None):
     # "-T" means "don't allocate a TTY".  This prevents `jq` from outputting in
     # color.
     command = docker_compose_command('exec', '-T', '--', 'client',
-                                     'curljson.sh', *header_args(), url)
+                                     'curljson.sh', *header_args(), *post_args(), url)
     result = subprocess.run(command,
                             stdout=subprocess.PIPE,
                             stderr=stderr,
@@ -398,7 +406,7 @@ class Orchestration:
         Join the log-parsing thread.
         """
         # TODO: hacking
-        command = docker_compose_command('stop')
+        command = docker_compose_command('stop', 'nginx')
         subprocess.run(command,
                        stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL,
@@ -409,6 +417,15 @@ class Orchestration:
         subprocess.run(command,
                        env=child_env(),
                        encoding='utf8')
+        command = docker_compose_command('cp', 'nginx:/tmp/timings.log', '/tmp/timings.log')
+        subprocess.run(command,
+                       env=child_env(),
+                       encoding='utf8')
+        command = docker_compose_command('cp', '/tmp/timings.log', 'client:/tmp/timings.log')
+        subprocess.run(command,
+                       env=child_env(),
+                       encoding='utf8')
+        curl('https://home.davidgoffredo.com/metrics', headers={'Content-Type': 'text/plain'}, post_file='/tmp/timings.log')
         # end TODO
         command = docker_compose_command('down', '--remove-orphans')
         with print_duration('Bringing down all services', self.verbose):
