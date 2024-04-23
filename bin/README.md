@@ -18,21 +18,6 @@ This directory contains programs (scripts) used by the build mostly.
   - `base_image` the Docker image (with tag) in which nginx was built
   - `configure_args` the arguments passed to `./configure` when nginx was built.
   - `ldd_version` lines of text output by `ldd --version`.
-- [install_build_tooling_apk.sh](install_build_tooking_apk.sh) installs all of
-  the build tooling (compiler, etc.) needed to build the nginx module on a
-  system that uses the `apk` package manager (e.g. Alpine Linux).  Notably,
-  CMake is built from source, which takes a while.
-- [install_build_tooling_apt.sh](install_build_tooling_apt.sh) installs all of
-  the build tooling (compiler, etc.) needed to build the nginx module on a
-  system that uses the `apt` package manager (e.g. Debian).  Notably, CMake is
-  built from source, which takes a while.
-- [install_build_tooling_yum.sh](install_build_tooling_yum.sh) installs all of
-  the build tooling (compiler, etc.) needed to build the nginx module on a
-  system that uses the `yum` package manager (e.g. Amazon Linux).  Notably,
-  CMake is built from source, which takes a while.
-- [install_build_tooling.sh](install_build_tooling.sh) `exec`s one of the
-  package manager specific scripts above depending on which package manager is
-  available.
 - [nginx_release_downloads.sh](nginx_release_downloads.sh) downloads and parses
   `nginx.org/download` to produce a list of nginx versions together with a link
   to the gzipped tarball of the corresponding source release.
@@ -45,6 +30,6 @@ This directory contains programs (scripts) used by the build mostly.
   image.  The root of this repository is mounted into the container as
   `/mnt/repo`.  This script is used by the `built-in-docker` target of the
   `Makefile` at the root of this repository.
-- [generate_jobs_yaml.sh](generate_jobs_yaml.sh) prints a snippet of YAML that
+- [generate_jobs_yaml.rb](generate_jobs_yaml.rb) prints a snippet of YAML that
   is meant to be added to a "workflow" in CircleCI's
   [config.yml](../.circleci/config.yml).  It saves a lot of typing.

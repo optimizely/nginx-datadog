@@ -262,54 +262,53 @@ def parse_info_script(script):
     return variables
 
 
-def prepare_release_artifact(build_job_number, work_dir):
+def prepare_release_artifacts(build_job_number, version, arch, waf, work_dir):
     artifacts = send_ci_request_paged(
         f'/project/{PROJECT_SLUG}/{build_job_number}/artifacts')
-    nginx_version_info_url = None
     module_url = None
+    module_url_dbg = None
     for artifact in artifacts:
         name = artifact['path']
-        if name == 'nginx-version-info':
-            nginx_version_info_url = artifact['url']
-        elif name == 'ngx_http_datadog_module.so':
+        if name == 'ngx_http_datadog_module.so':
             module_url = artifact['url']
+        elif name == 'ngx_http_datadog_module.so.debug':
+            module_url_dbg = artifact['url']
 
-    if nginx_version_info_url is None:
-        raise Exception(
-            f"Job number {build_job_number} doesn't have an 'nginx-version-info' build artifact."
-        )
     if module_url is None:
         raise Exception(
             f"Job number {build_job_number} doesn't have an 'ngx_http_datadog_module.so' build artifact."
         )
+    if module_url_dbg is None:
+        raise Exception(
+            f"Job number {build_job_number} doesn't have an 'ngx_http_datadog_module.so.debug' build artifact."
+        )
 
-    nginx_version_info = urllib.request.urlopen(
-        nginx_version_info_url).read().decode('utf8')
     module_path = work_dir / 'ngx_http_datadog_module.so'
     download_file(module_url, module_path)
 
-    # `nginx_version_info` serves to determine the values of BASE_IMAGE and ARCH.
-    # These values are instrumental in constructing the tarball name according to
-    # the specified convention: <BASE_IMAGE>-<ARCH>-ngx_http_datadog_module.so.tgz
-    variables = parse_info_script(nginx_version_info)
-    if 'BASE_IMAGE' not in variables:
-        raise Exception(
-            f"BASE_IMAGE not found in nginx-version-info: {nginx_version_info}"
-        )
-    if 'ARCH' not in variables:
-        raise Exception(
-            f"ARCH not found in nginx-version-info: {nginx_version_info}")
+    module_debug_path = work_dir / 'ngx_http_datadog_module.so.debug'
+    download_file(module_url_dbg, module_debug_path)
 
-    arch = variables['ARCH']
-    base_prefix = variables['BASE_IMAGE'].replace(':', '_')
-    tarball_path = work_dir / f'{base_prefix}-{arch}-ngx_http_datadog_module.so.tgz'
+    waf_suffix = '-WAF' if waf else ''
+
+    tarball_path = work_dir / f'ngx_http_datadog_module{waf_suffix}-{arch}-{version}.so.tgz'
     command = [tar_exe, '-czf', tarball_path, '-C', work_dir, module_path.name]
     run(command, check=True)
 
     command = [gpg_exe, '--armor', '--detach-sign', tarball_path]
     run(command, check=True)
 
+    tarball_path = work_dir / f'ngx_http_datadog_module{waf_suffix}-{arch}-{version}.so.debug.tgz'
+    command = [
+        tar_exe, '-czf', tarball_path, '-C', work_dir, module_debug_path.name
+    ]
+    run(command, check=True)
+
+    command = [gpg_exe, '--armor', '--detach-sign', tarball_path]
+    run(command, check=True)
+
     module_path.unlink()
+    module_debug_path.unlink()
 
 
 def handle_job(job, work_dir):
@@ -321,7 +320,14 @@ def handle_job(job, work_dir):
         raise Exception(f'Job has fatal status "{status}": {job}')
     elif status == 'success':
         if job['name'].startswith('build '):
-            prepare_release_artifact(job['job_number'], work_dir)
+            # name should be something like "build 1.25.4 on arm64 WAF ON"
+            match = re.match(r'build ([\d.]+) on (amd64|arm64) WAF (ON|OFF)',
+                             job['name'])
+            if match is None:
+                raise Exception(f'Job name does not match regex "{re}": {job}')
+            version, arch, waf = match.groups()
+            prepare_release_artifacts(job['job_number'], version, arch,
+                                      waf == "ON", work_dir)
         return 'done'
 
 
