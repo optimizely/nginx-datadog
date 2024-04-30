@@ -291,7 +291,7 @@ class ReqSerializer {
       std::vector<const ngx_table_elt_t *> cookie_headers;
       dnsec::NgnixHeaderIterable it{request.headers_in.headers};
       for (auto &&h : it) {
-        if (!dnsec::key_equals_ci(h, "cookie"sv)) {
+        if (!dnsec::req_key_equals_ci(h, "cookie"sv)) {
           continue;
         }
         cookie_headers.push_back(&h);

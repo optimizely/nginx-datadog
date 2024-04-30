@@ -75,7 +75,9 @@ inline std::string_view key(const ngx_table_elt_t &header) {
 inline std::string_view lc_key(const ngx_table_elt_t &header) {
   return {reinterpret_cast<const char *>(header.lowcase_key), header.key.len};
 }
-inline bool key_equals_ci(const ngx_table_elt_t &header, std::string_view key) {
+
+inline bool req_key_equals_ci(const ngx_table_elt_t &header,
+                              std::string_view key) {
 #if NGX_DEBUG
   for (std::size_t i = 0; i < key.length(); i++) {
     if (std::tolower(key[i]) != key[i]) {
@@ -84,9 +86,18 @@ inline bool key_equals_ci(const ngx_table_elt_t &header, std::string_view key) {
   }
 #endif
 
-  if (header.lowcase_key) {
-    return key == lc_key(header);
+  return key == lc_key(header);
+}
+
+inline bool resp_key_equals_ci(const ngx_table_elt_t &header,
+                               std::string_view key) {
+#if NGX_DEBUG
+  for (std::size_t i = 0; i < key.length(); i++) {
+    if (std::tolower(key[i]) != key[i]) {
+      throw new std::invalid_argument("key must be lowercase");
+    }
   }
+#endif
 
   if (header.key.len != key.size()) {
     return false;

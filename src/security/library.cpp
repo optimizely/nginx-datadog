@@ -1,5 +1,7 @@
 #include "library.h"
 
+#include <string>
+
 extern "C" {
 #include <ngx_core.h>
 #include <ngx_cycle.h>
@@ -236,6 +238,19 @@ namespace datadog::nginx::security {
 
 class FinalizedConfigSettings {
   static constexpr ngx_uint_t kDefaultWafTimeoutUsec = 1000000;  // 100 ms
+  static constexpr std::string_view kDefaultObfuscationKeyRegex =
+      "(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
+      "public_?)key)|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)|bearer|"
+      "authorization"sv;
+  static constexpr std::string_view kDefaultObfuscationValueRegex =
+      R"((?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?)"
+      R"(|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|)"
+      R"(secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:\s*=[^;]|")"
+      R"(\s*:\s*"[^"]+")|bearer\s+[a-z0-9._-]+|token:[a-z0-9]{13}|gh[opsu]_)"
+      R"([0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+/=-]+)?|)"
+      R"([-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[-]{5}[^-]+[-]{5}END[a-z\s]+PRIVATE\s)"
+      R"(KEY|ssh-rsa\s*[a-z0-9/.+]{100,})";
+
  public:
   enum class enable_status : std::uint8_t {
     ENABLED,
@@ -381,7 +396,7 @@ FinalizedConfigSettings::FinalizedConfigSettings(
   } else {
     obfuscation_key_regex_ =
         get_env_str(evs, "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"sv)
-            .value_or("");
+            .value_or(std::string{kDefaultObfuscationKeyRegex});
   }
 
   if (ngx_conf.appsec_obfuscation_value_regex.len > 0) {
@@ -390,7 +405,7 @@ FinalizedConfigSettings::FinalizedConfigSettings(
   } else {
     obfuscation_value_regex_ =
         get_env_str(evs, "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"sv)
-            .value_or("");
+            .value_or(std::string{kDefaultObfuscationValueRegex});
   }
 }
 
@@ -503,7 +518,7 @@ std::optional<ddwaf_owned_map> Library::initialize_security_library(
       source = ngx_stringv("embedded ruleset"sv);
     }
     ngx_log_error(NGX_LOG_INFO, ngx_cycle->log, 0,
-                  "ddwaf_init loaded %uz rules from %V", num_loaded_rules,
+                  "AppSec loaded %uz rules from file %V", num_loaded_rules,
                   &source);
   }
 

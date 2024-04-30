@@ -23,6 +23,7 @@
 #include "blocking.h"
 #include "collection.h"
 #include "ddwaf_obj.h"
+#include "header_tags.h"
 #include "library.h"
 #include "util.h"
 
@@ -513,6 +514,9 @@ std::optional<BlockSpecification> Context::run_waf_start(
   }
 
   span.set_metric("_dd.appsec.enabled"sv, 1.0);
+  span.set_tag("_dd.runtime_family", "cpp"sv);
+  static const std::string_view libddwaf_version{ddwaf_get_version()};
+  span.set_tag("_dd.appsec.waf.version", libddwaf_version);
 
   ddwaf_object *data = collect_request_data(req, memres_);
 
@@ -650,8 +654,11 @@ void Context::do_on_main_log_request(ngx_http_request_t &request,
     return;
   }
 
+  set_header_tags(has_matches(), request, span);
   report_matches(request, span);
 }
+
+bool Context::has_matches() const noexcept { return !results_.empty(); }
 
 void Context::report_matches(ngx_http_request_t &request, dd::Span &span) {
   if (results_.empty()) {

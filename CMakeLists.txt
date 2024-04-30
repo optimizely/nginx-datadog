@@ -94,6 +94,7 @@ if(NGINX_DATADOG_ASM_ENABLED)
     src/security/collection.cpp
     src/security/context.cpp
     src/security/ddwaf_obj.cpp
+    src/security/header_tags.cpp
     src/security/library.cpp)
   target_compile_definitions(ngx_http_datadog_module PRIVATE WITH_WAF)
 endif()

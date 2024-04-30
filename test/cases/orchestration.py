@@ -453,7 +453,12 @@ class Orchestration:
 
         self.verbose.close()
 
-    def send_nginx_http_request(self, path, port=80, headers={}, method='GET'):
+    def send_nginx_http_request(self,
+                                path,
+                                port=80,
+                                headers={},
+                                method='GET',
+                                req_body=None):
         """Send a "GET <path>" request to nginx, and return the resulting HTTP
         status code and response body as a tuple `(status, body)`.
         """
@@ -461,6 +466,7 @@ class Orchestration:
         print('fetching', url, file=self.verbose, flush=True)
         fields, headers, body = curl(url,
                                      headers,
+                                     body=req_body,
                                      stderr=self.verbose,
                                      method=method)
         return fields['response_code'], headers, body

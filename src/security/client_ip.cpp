@@ -258,7 +258,8 @@ std::optional<ngx_table_elt_t> get_request_header(const ngx_list_t &headers,
   dnsec::NgnixHeaderIterable it{headers};
   auto maybe_header =
       std::find_if(it.begin(), it.end(), [header_name, hash](auto &&header) {
-        return header.hash == hash && dnsec::key_equals_ci(header, header_name);
+        return header.hash == hash &&
+               dnsec::req_key_equals_ci(header, header_name);
       });
   if (maybe_header == it.end()) {
     return std::nullopt;

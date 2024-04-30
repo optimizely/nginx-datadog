@@ -73,6 +73,7 @@ class Context {
                                   ngx_chain_t *chain, dd::Span &span);
   void do_on_main_log_request(ngx_http_request_t &request, dd::Span &span);
 
+  bool has_matches() const noexcept;
   void report_matches(ngx_http_request_t &request, dd::Span &span);
 
   std::shared_ptr<OwnedDdwafHandle> waf_handle_;
