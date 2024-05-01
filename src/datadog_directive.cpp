@@ -1037,6 +1037,7 @@ char *waf_thread_pool_name(ngx_conf_t *cf, ngx_command_t *command,
   if (value->len == 0) {
     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                        "datadog_waf_thread_pool_name cannot be empty");
+    return static_cast<char *>(NGX_CONF_ERROR);
   }
 
   ngx_thread_pool_t *tp = ngx_thread_pool_get(cf->cycle, value);

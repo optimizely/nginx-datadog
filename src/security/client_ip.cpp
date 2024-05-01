@@ -51,7 +51,7 @@ struct IpAddr {
   bool is_private_v6() const;
 
   static std::optional<IpAddr> from_string(std::string_view addr_sv,
-                                           int af_hint = 0);
+                                           int af_hint = AF_UNSPEC);
 };
 
 std::optional<IpAddr> IpAddr::from_string(std::string_view addr_sv,
@@ -60,11 +60,17 @@ std::optional<IpAddr> IpAddr::from_string(std::string_view addr_sv,
   std::string input_nulterminated{addr_sv};
   auto *addr_nult = input_nulterminated.c_str();
 
-  if (af_hint != AF_INET6) {
+  if (af_hint == AF_INET || af_hint == AF_UNSPEC) {
     int ret = inet_pton(AF_INET, addr_nult, &out.u.v4);
     if (ret == 1) {
       out.af = AF_INET;
       return {out};
+    }
+
+    if (af_hint == AF_INET) {
+      // might still be an ipv6-mapped ipv4 address, but we interpret af_hint
+      // as indicating the formal type of the address (see usages)
+      return std::nullopt;
     }
   }
 
@@ -74,20 +80,16 @@ std::optional<IpAddr> IpAddr::from_string(std::string_view addr_sv,
     return std::nullopt;
   }
 
+  // if we got here, we have a valid formal ipv6 address
+
   uint8_t *s6addr = out.u.v6.s6_addr;
   static constexpr uint8_t ip4_mapped_prefix[12] = {0, 0, 0, 0, 0,    0,
                                                     0, 0, 0, 0, 0xFF, 0xFF};
   if (std::memcmp(s6addr, ip4_mapped_prefix, sizeof(ip4_mapped_prefix)) == 0) {
     // IPv4 mapped
-    if (af_hint == AF_INET6) {
-      return std::nullopt;
-    }
     std::memcpy(&out.u.v4.s_addr, s6addr + sizeof(ip4_mapped_prefix), 4);
     out.af = AF_INET;
   } else {
-    if (af_hint == AF_INET) {
-      return std::nullopt;
-    }
     out.af = AF_INET6;
   }
 

@@ -498,8 +498,8 @@ static ngx_int_t datadog_master_process_post_config(
   // Forward tracer-specific environment variables to worker processes.
   auto push_to_main_conf = [main_conf](const std::string &env_var_name) {
     if (const char *value = std::getenv(env_var_name.c_str())) {
-      main_conf->environment_variables.push_back(environment_variable_t{
-          .name = std::move(env_var_name), .value = value});
+      main_conf->environment_variables.push_back(
+          environment_variable_t{.name = env_var_name, .value = value});
     }
   };
   for (const std::string_view &env_var_name :

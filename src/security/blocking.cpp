@@ -37,10 +37,7 @@ struct BlockResponse {
   static BlockResponse resolve_content_type(
       const dnsec::BlockSpecification &spec,
       const ngx_http_request_t &req) noexcept {
-    int status;
     enum ContentType ct;
-
-    status = spec.status;
 
     switch (spec.ct) {
       case dnsec::BlockSpecification::ContentType::AUTO:
@@ -58,7 +55,7 @@ struct BlockResponse {
         break;
     }
 
-    return {status, ct, spec.location};
+    return {spec.status, ct, spec.location};
   }
 
   static ngx_str_t content_type_header(enum BlockResponse::ContentType ct) {
