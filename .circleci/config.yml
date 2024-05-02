@@ -250,7 +250,7 @@ workflows:
             ignore: "/^v[0-9]+\\.[0-9]+\\.[0-9]+/"
   build-and-test-all:
     jobs:
-    # output of bin/generate_jobs.rb
+    # output of bin/generate_jobs_yaml.rb
     - build_amd64:
         <<: *release_tag_only
         matrix:
@@ -269,6 +269,8 @@ workflows:
             - 1.25.2
             - 1.25.3
             - 1.25.4
+            - 1.25.5
+            - 1.26.0
             waf:
             - 'ON'
             - 'OFF'
@@ -291,6 +293,8 @@ workflows:
             - 1.25.2
             - 1.25.3
             - 1.25.4
+            - 1.25.5
+            - 1.26.0
             waf:
             - 'ON'
             - 'OFF'
@@ -348,6 +352,42 @@ workflows:
             - nginx:1.22.1
             nginx-version:
             - 1.22.1
+        name: test << matrix.nginx-version >> on << matrix.base-image >>:<< matrix.arch >> WAF << matrix.waf >>
+        requires:
+        - build << matrix.nginx-version >> on << matrix.arch >> WAF << matrix.waf >>
+    - test:
+        <<: *release_tag_only
+        matrix:
+          parameters:
+            arch:
+            - amd64
+            - arm64
+            waf:
+            - 'ON'
+            - 'OFF'
+            base-image:
+            - nginx:1.26.0-alpine
+            - nginx:1.26.0
+            nginx-version:
+            - 1.26.0
+        name: test << matrix.nginx-version >> on << matrix.base-image >>:<< matrix.arch >> WAF << matrix.waf >>
+        requires:
+        - build << matrix.nginx-version >> on << matrix.arch >> WAF << matrix.waf >>
+    - test:
+        <<: *release_tag_only
+        matrix:
+          parameters:
+            arch:
+            - amd64
+            - arm64
+            waf:
+            - 'ON'
+            - 'OFF'
+            base-image:
+            - nginx:1.25.5-alpine
+            - nginx:1.25.5
+            nginx-version:
+            - 1.25.5
         name: test << matrix.nginx-version >> on << matrix.base-image >>:<< matrix.arch >> WAF << matrix.waf >>
         requires:
         - build << matrix.nginx-version >> on << matrix.arch >> WAF << matrix.waf >>
