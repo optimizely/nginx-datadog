@@ -22,7 +22,7 @@ if (NGINX_SRC_DIR STREQUAL "" AND NGINX_VERSION STREQUAL "")
 endif()
 option(NGINX_PATCH_AWAY_LIBC "Patch away libc dependency" OFF)
 
-# Make curl link against a static zlib
+# Make curl link against a static zlib (requires cmake 3.24)
 set(ZLIB_USE_STATIC_LIBS ON)
 
 # Prefer the build mode "release with debug info" if another mode wasn't

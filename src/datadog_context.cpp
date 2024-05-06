@@ -77,12 +77,13 @@ void DatadogContext::on_log_request(ngx_http_request_t *request) {
     throw std::runtime_error{
         "on_log_request failed: could not find request trace"};
   }
+  trace->on_log_request();
+
 #ifdef WITH_WAF
   if (sec_ctx_ && request == request->main) {
     sec_ctx_->on_main_log_request(*request, trace->active_span());
   }
 #endif
-  trace->on_log_request();
 }
 
 ngx_str_t DatadogContext::lookup_propagation_header_variable_value(

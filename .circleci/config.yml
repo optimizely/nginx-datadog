@@ -114,6 +114,7 @@ jobs:
       name: docker-<< parameters.arch >>
       image: cimg/python:3.10.13
     environment:
+      # https://github.com/containers/podman/issues/13889
       DOCKER_BUILDKIT: 1
       WAF: "<< parameters.waf >>"
     steps:
