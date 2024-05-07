@@ -134,16 +134,18 @@ struct datadog_main_conf_t {
   ngx_str_t custom_client_ip_header{};
 
   // DD_APPSEC_WAF_TIMEOUT (default: 0.1 s), in microseconds
+  // While the environment variable is specified in microseconds, we store
+  // the value in milliseconds for easier use with nginx's time handling.
   // The default value is not set to 100 to detect when the value is unset
   // When specified in nginx configuration, follows the usual pattern for such
   // settings in nginx (e.g. 100ms)
   ngx_msec_t appsec_waf_timeout_ms{NGX_CONF_UNSET_MSEC};
 
   // DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
-  ngx_str_t appsec_obfuscation_key_regex{};
+  ngx_str_t appsec_obfuscation_key_regex = ngx_null_string;
 
   // DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
-  ngx_str_t appsec_obfuscation_value_regex{};
+  ngx_str_t appsec_obfuscation_value_regex = ngx_null_string;
 
   // TODO: missing settings and their functionality
   // DD_TRACE_CLIENT_IP_RESOLVER_ENABLED (whether to collect headers and run the

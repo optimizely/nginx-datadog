@@ -63,7 +63,7 @@ ngx_int_t DatadogContext::main_output_body_filter(ngx_http_request_t *request,
   auto *trace = find_trace(request);
   if (trace == nullptr) {
     throw std::runtime_error{
-        "main_output_bodyf_filter: could not find request trace"};
+        "main_output_body_filter: could not find request trace"};
   }
 
   dd::Span &span = trace->active_span();

@@ -91,7 +91,7 @@ void report_match(const ngx_http_request_t &req, dd::TraceSegment &seg,
   std::string_view const json{buffer.GetString(), buffer.GetLength()};
 
   ngx_str_t json_ns{dnsec::ngx_stringv(json)};
-  ngx_log_error(NGX_LOG_NOTICE, req.connection->log, 0, "appsec event: %V",
+  ngx_log_error(NGX_LOG_INFO, req.connection->log, 0, "appsec event: %V",
                 &json_ns);
 
   span.set_tag("_dd.appsec.json"sv, json);

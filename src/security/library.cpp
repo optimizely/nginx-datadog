@@ -38,21 +38,12 @@ namespace dnsec = datadog::nginx::security;
 
 namespace {
 
-static constexpr auto kDefaultKeyRegex =
-    "(?i)(p(ass)?w(or)?d|pass(_?phrase)?|secret|(api_?|private_?|public_?)key)|"
-    "token|consumer_?(id|key|secret)|sign(ed|ature)|bearer|authorization"sv;
-
 static constexpr ddwaf_config kBaseWafConfig{
     .limits =
         {
-            .max_container_size = 150,
-            .max_container_depth = 10,
+            .max_container_size = 256,
+            .max_container_depth = 20,
             .max_string_length = 4096,
-        },
-    .obfuscator =
-        {
-            .key_regex = kDefaultKeyRegex.data(),
-            .value_regex = nullptr,
         },
     .free_fn = nullptr,
 };
@@ -286,12 +277,12 @@ class FinalizedConfigSettings {
 
   auto waf_timeout() const { return waf_timeout_usec_; }
 
-  auto obfuscation_key_regex() const {
-    return non_empty_or_nullopt(obfuscation_key_regex_);
+  const std::string &obfuscation_key_regex() const {
+    return obfuscation_key_regex_;
   };
 
-  auto appsec_obfuscation_value_regex() const {
-    return non_empty_or_nullopt(obfuscation_value_regex_);
+  const std::string &appsec_obfuscation_value_regex() const {
+    return obfuscation_value_regex_;
   };
 
  private:
@@ -301,6 +292,7 @@ class FinalizedConfigSettings {
   // clang-format off
   static std::optional<bool> get_env_bool(const ev_t &evs, std::string_view name);
   static std::optional<std::string> get_env_str(const ev_t &evs, std::string_view name);
+  static std::optional<std::string> get_env_str_maybe_empty(const ev_t &evs, std::string_view name);
   static std::optional<ngx_uint_t> get_env_unsigned(const ev_t &evs, std::string_view name);
   static std::string normalize_configured_header(std::string_view value);
   // clang-format on
@@ -390,21 +382,23 @@ FinalizedConfigSettings::FinalizedConfigSettings(
     waf_timeout_usec_ = ngx_conf.appsec_waf_timeout_ms * 1000;
   }
 
-  if (ngx_conf.appsec_obfuscation_key_regex.len > 0) {
+  if (ngx_conf.appsec_obfuscation_key_regex.data != nullptr) {
     obfuscation_key_regex_ =
         to_string_view(ngx_conf.appsec_obfuscation_key_regex);
   } else {
     obfuscation_key_regex_ =
-        get_env_str(evs, "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"sv)
+        get_env_str_maybe_empty(evs,
+                                "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"sv)
             .value_or(std::string{kDefaultObfuscationKeyRegex});
   }
 
-  if (ngx_conf.appsec_obfuscation_value_regex.len > 0) {
+  if (ngx_conf.appsec_obfuscation_value_regex.data != nullptr) {
     obfuscation_value_regex_ =
         to_string_view(ngx_conf.appsec_obfuscation_value_regex);
   } else {
     obfuscation_value_regex_ =
-        get_env_str(evs, "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"sv)
+        get_env_str_maybe_empty(
+            evs, "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"sv)
             .value_or(std::string{kDefaultObfuscationValueRegex});
   }
 }
@@ -426,6 +420,16 @@ std::optional<std::string> FinalizedConfigSettings::get_env_str(
     const ev_t &evs, std::string_view name) {
   auto maybe_value = get_env(evs, name);
   if (!maybe_value || maybe_value->empty()) {
+    return std::nullopt;
+  }
+
+  return std::string{*maybe_value};
+};
+
+std::optional<std::string> FinalizedConfigSettings::get_env_str_maybe_empty(
+    const ev_t &evs, std::string_view name) {
+  auto maybe_value = get_env(evs, name);
+  if (!maybe_value) {
     return std::nullopt;
   }
 
@@ -485,14 +489,10 @@ std::optional<ddwaf_owned_map> Library::initialize_security_library(
                    ngx_log_level_to_ddwaf(ngx_cycle->log->log_level));
 
   ddwaf_config waf_config = kBaseWafConfig;
-  if (conf.obfuscation_key_regex()) {
-    waf_config.obfuscator.key_regex = conf.obfuscation_key_regex()->data();
-  }
+  waf_config.obfuscator.key_regex = conf.obfuscation_key_regex().c_str();
 
-  if (conf.appsec_obfuscation_value_regex()) {
-    waf_config.obfuscator.value_regex =
-        conf.appsec_obfuscation_value_regex()->data();
-  }
+  waf_config.obfuscator.value_regex =
+      conf.appsec_obfuscation_value_regex().c_str();
 
   ddwaf_owned_map ruleset = read_ruleset(conf.ruleset_file());
   libddwaf_ddwaf_owned_obj<ddwaf_map_obj> diag{{}};

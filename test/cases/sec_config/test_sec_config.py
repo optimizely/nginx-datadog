@@ -146,3 +146,20 @@ class TestSecConfig(case.TestCase):
         self.assertEqual(
             appsec_data['triggers'][0]['rule_matches'][0]['parameters'][0]
             ['value'], '<Redacted>')
+
+    def test_no_obfuscation(self):
+        waf_path = Path(__file__).parent / './conf/waf.json'
+        waf_text = waf_path.read_text()
+        self.orch.nginx_replace_file('/tmp/waf.json', waf_text)
+
+        self.apply_config('no_obfuscation')
+
+        self.orch.sync_service('agent')
+
+        # No redaction by key
+        status, _, _ = self.orch.send_nginx_http_request(
+            '/http/?password=matched+value', 80)
+        appsec_data = self.get_appsec_data()
+        self.assertEqual(
+            appsec_data['triggers'][0]['rule_matches'][0]['parameters'][0]
+            ['value'], 'matched value')

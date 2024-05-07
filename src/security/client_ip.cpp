@@ -370,7 +370,7 @@ ExtractResult parse_multiple_maybe_port_sv(std::string_view value_sv,
         first_private = *maybe_cur;
       }
     }
-    value = (comma && comma + 1 < end) ? (comma + 1) : NULL;
+    value = (comma && comma + 1 < end) ? (comma + 1) : nullptr;
   } while (value);
 
   if (!first_private.empty()) {

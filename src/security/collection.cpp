@@ -171,7 +171,7 @@ class ReqSerializer {
     set_map_entry_str(slot, kMethod, request.method_name);
   }
 
-  // adapt to the same iteratror format as query_string_iter
+  // adapt to the same iterator format as query_string_iter
   template <bool IsRequest>
   struct HeaderKeyValueIter {
     HeaderKeyValueIter(const ngx_list_t &list, std::string_view exclude,
@@ -184,12 +184,12 @@ class ReqSerializer {
 
     void reset() { it_ = decltype(it_){list_}; }
 
-    bool ended() const noexcept { return !(it_ != end_); }
+    bool ended() const noexcept { return it_ == end_; }
 
     HeaderKeyValueIter &operator++() {
       while (true) {
         ++it_;
-        if (!(it_ != end_)) {
+        if (it_ == end_) {
           break;
         }
         const auto &h = *it_;
