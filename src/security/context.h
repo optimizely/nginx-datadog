@@ -84,6 +84,7 @@ class Context {
   enum class stage {
     DISABLED,
     START,
+    ENTERED_ON_START,
     AFTER_BEGIN_WAF,
     AFTER_BEGIN_WAF_BLOCK,  // in this case we won't run the waf at the end
     BEFORE_RUN_WAF_END,

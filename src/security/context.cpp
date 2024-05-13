@@ -174,7 +174,7 @@ Context::Context(std::shared_ptr<OwnedDdwafHandle> handle)
   ddwaf_handle ddwaf_h = waf_handle_->get();
   ctx_ = ddwaf_context_init(ddwaf_h);
 
-  stage_->store(stage::START, std::memory_order_release);
+  stage_->store(stage::START, std::memory_order_relaxed);
 }
 
 std::unique_ptr<Context> Context::maybe_create() {
@@ -188,7 +188,11 @@ std::unique_ptr<Context> Context::maybe_create() {
 template <typename Self>
 class PolTaskCtx {
   PolTaskCtx(ngx_http_request_t &req, Context &ctx, dd::Span &span)
-      : req_{req}, ctx_{ctx}, span_{span} {}
+      : req_{req},
+        ctx_{ctx},
+        span_{span},
+        prev_read_evt_handler_(req.read_event_handler),
+        prev_write_evt_handler_(req.write_event_handler) {}
 
  public:
   // the returned reference is request pool allocated and must have its
@@ -211,6 +215,30 @@ class PolTaskCtx {
     return *task_ctx;
   }
 
+  bool submit(ngx_thread_pool_t *pool) noexcept {
+    req_.read_event_handler = ngx_http_block_reading;
+    req_.write_event_handler = PolTaskCtx<Self>::empty_write_handler;
+
+    req_.main->count++;
+
+    if (ngx_thread_task_post(pool, &get_task()) != NGX_OK) {
+      ngx_log_error(NGX_LOG_ERR, req_.connection->log, 0,
+                    "failed to post task");
+
+      req_.main->count--;
+      restore_handlers();
+
+      static_cast<Self *>(this)->~Self();
+      return false;
+    }
+
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, req_.connection->log, 0,
+                   "refcount after task submit: %d", req_.main->count);
+
+    return true;
+  }
+
+ private:
   ngx_thread_task_t &get_task() noexcept {
     // ngx_thread_task_alloc allocates space for the context right after the
     // ngx_thread_task_t structure
@@ -220,7 +248,6 @@ class PolTaskCtx {
     // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
   }
 
- private:
   static void handler(void *self, ngx_log_t *log) noexcept {
     static_cast<Self *>(self)->handle(log);
   }
@@ -247,8 +274,30 @@ class PolTaskCtx {
   // runs on the main thread
   static void completion_handler(ngx_event_t *evt) noexcept {
     auto *self = static_cast<Self *>(evt->data);
-    self->complete();
-    self->~PolTaskCtx();
+    self->restore_handlers();
+
+    auto count = self->req_.main->count;
+    if (count > 1) {
+      self->req_.main->count--;
+      self->complete();
+    } else {
+      ngx_log_debug0(NGX_LOG_DEBUG_HTTP, self->req_.connection->log, 0,
+                     "skipping run of completion handler because we're the "
+                     "only reference to the request; finalizing instead");
+      ngx_http_finalize_request(&self->req_, NGX_DONE);
+    }
+
+    self->~Self();
+  }
+
+  void restore_handlers() noexcept {
+    req_.read_event_handler = prev_read_evt_handler_;
+    req_.write_event_handler = prev_write_evt_handler_;
+  }
+
+  static void empty_write_handler(ngx_http_request_t *req) {
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, req->connection->log, 0,
+                   "task wait empty handler");
   }
 
   // define in subclasses
@@ -260,6 +309,8 @@ class PolTaskCtx {
   Context &ctx_;
   dd::Span &span_;
   std::optional<BlockSpecification> block_spec_;
+  ngx_http_event_handler_pt prev_read_evt_handler_;
+  ngx_http_event_handler_pt prev_write_evt_handler_;
   std::atomic<bool> ran_on_thread_{false};
 };
 
@@ -271,6 +322,8 @@ class Pol1stWafCtx : public PolTaskCtx<Pol1stWafCtx> {
   }
 
   void complete() noexcept {
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, req_.connection->log, 0,
+                   "completion handler of waf start task");
     bool const ran = ran_on_thread_.load(std::memory_order_acquire);
     if (ran && block_spec_) {
       span_.set_tag("appsec.blocked"sv, "true"sv);
@@ -304,9 +357,19 @@ bool Context::do_on_request_start(ngx_http_request_t &request, dd::Span &span) {
   if (ctx_.resource == nullptr) {
     return false;
   }
-  if (stage_->load(std::memory_order_acquire) != stage::START) {
+
+  stage st = stage_->load(std::memory_order_relaxed);
+  if (st != stage::START) {
     ngx_log_error(NGX_LOG_ERR, request.connection->log, 0,
                   "WAF context is not in the start stage");
+    return false;
+  }
+
+  if (!stage_->compare_exchange_strong(st, stage::ENTERED_ON_START,
+                                       std::memory_order_release,
+                                       std::memory_order_relaxed)) {
+    ngx_log_error(NGX_LOG_ERR, request.connection->log, 0,
+                  "Unexpected concurrent change of stage_");
     return false;
   }
 
@@ -322,17 +385,12 @@ bool Context::do_on_request_start(ngx_http_request_t &request, dd::Span &span) {
 
   auto &task_ctx = Pol1stWafCtx::create(request, *this, span);
 
-  if (ngx_thread_task_post(conf->waf_pool, &task_ctx.get_task()) != NGX_OK) {
-    // log error
-    ngx_log_error(NGX_LOG_ERR, request.connection->log, 0,
-                  "failed to post waf task");
-    task_ctx.~Pol1stWafCtx();
-    return false;
+  if (task_ctx.submit(conf->waf_pool)) {
+    ngx_log_debug(NGX_LOG_DEBUG_HTTP, request.connection->log, 0,
+                  "posted initial waf task");
+    return true;
   }
-
-  ngx_log_debug(NGX_LOG_DEBUG_HTTP, request.connection->log, 0,
-                "posted waf task");
-  return true;
+  return false;
 }
 
 namespace {
@@ -509,7 +567,7 @@ std::optional<BlockSpecification> resolve_block_spec(
 std::optional<BlockSpecification> Context::run_waf_start(
     ngx_http_request_t &req, dd::Span &span) {
   auto st = stage_->load(std::memory_order_acquire);
-  if (st != stage::START) {
+  if (st != stage::ENTERED_ON_START) {
     return std::nullopt;
   }
 
@@ -562,8 +620,8 @@ class PolFinalWafCtx : public PolTaskCtx<PolFinalWafCtx> {
   }
 
   void complete() noexcept {
-    ran_on_thread_.load(std::memory_order_acquire);
-    ngx_http_finalize_request(&req_, NGX_DONE);
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, req_.connection->log, 0,
+                   "completion handler of waf task");
   }
 
   friend PolTaskCtx;
@@ -581,18 +639,11 @@ ngx_int_t Context::do_output_body_filter(ngx_http_request_t &request,
   auto *conf = static_cast<datadog_loc_conf_t *>(
       ngx_http_get_module_loc_conf(&request, ngx_http_datadog_module));
 
-  // so the request isn't freed after the filter
-  request.count++;
-
   stage_->store(stage::BEFORE_RUN_WAF_END, std::memory_order_release);
 
-  if (ngx_thread_task_post(conf->waf_pool, &task_ctx.get_task()) != NGX_OK) {
-    // log error
-    ngx_log_error(NGX_LOG_ERR, request.connection->log, 0,
-                  "failed to post waf task");
-    task_ctx.~PolFinalWafCtx();
-
-    return NGX_ERROR;
+  if (task_ctx.submit(conf->waf_pool)) {
+    ngx_log_debug(NGX_LOG_DEBUG_HTTP, request.connection->log, 0,
+                  "posted waf end task");
   }
 
   // blocking not supported
@@ -612,8 +663,6 @@ ngx_int_t Context::do_output_body_filter(ngx_http_request_t &request,
   // original header, send the cached body data, discard it and disable caching
   // body data.
 
-  ngx_log_debug(NGX_LOG_DEBUG_HTTP, request.connection->log, 0,
-                "posted waf end task");
   return ngx_http_next_output_body_filter(&request, chain);
 }
 
