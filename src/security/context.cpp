@@ -216,8 +216,7 @@ class PolTaskCtx {
   }
 
   bool submit(ngx_thread_pool_t *pool) noexcept {
-    req_.read_event_handler = ngx_http_block_reading;
-    req_.write_event_handler = PolTaskCtx<Self>::empty_write_handler;
+    replace_handlers();
 
     req_.main->count++;
 
@@ -274,20 +273,41 @@ class PolTaskCtx {
   // runs on the main thread
   static void completion_handler(ngx_event_t *evt) noexcept {
     auto *self = static_cast<Self *>(evt->data);
-    self->restore_handlers();
+    self->completion_handler_impl();
+  }
 
-    auto count = self->req_.main->count;
+  void completion_handler_impl() noexcept {
+    restore_handlers();
+
+    auto count = req_.main->count;
     if (count > 1) {
-      self->req_.main->count--;
-      self->complete();
+      // ngx_del_event(connection->read, NGX_READ_EVENT, 0) may've been called
+      // by ngx_http_block_reading
+      if (ngx_handle_read_event(req_.connection->read, 0) != NGX_OK) {
+        ngx_http_finalize_request(&req_, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        ngx_log_error(NGX_LOG_ERR, req_.connection->log, 0,
+                      "failed to re-enable read event");
+      } else {
+        req_.main->count--;
+        static_cast<Self *>(this)->complete();
+      }
     } else {
-      ngx_log_debug0(NGX_LOG_DEBUG_HTTP, self->req_.connection->log, 0,
-                     "skipping run of completion handler because we're the "
-                     "only reference to the request; finalizing instead");
-      ngx_http_finalize_request(&self->req_, NGX_DONE);
+      ngx_log_debug0(
+          NGX_LOG_DEBUG_HTTP, req_.connection->log, 0,
+          "skipping run of completion handler because we're the only "
+          "reference to the request; finalizing instead");
+      ngx_http_finalize_request(&req_, NGX_DONE);
     }
 
-    self->~Self();
+    static_cast<Self *>(this)->~Self();
+  }
+
+  // define in subclasses
+  // void complete() noexcept {}
+
+  void replace_handlers() noexcept {
+    req_.read_event_handler = ngx_http_block_reading;
+    req_.write_event_handler = PolTaskCtx<Self>::empty_write_handler;
   }
 
   void restore_handlers() noexcept {
@@ -298,10 +318,13 @@ class PolTaskCtx {
   static void empty_write_handler(ngx_http_request_t *req) {
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, req->connection->log, 0,
                    "task wait empty handler");
-  }
 
-  // define in subclasses
-  // void complete() noexcept {}
+    ngx_event_t *wev = req->connection->write;
+
+    if (ngx_handle_write_event(wev, 0) != NGX_OK) {
+      ngx_http_finalize_request(req, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    }
+  }
 
  private:
   friend Self;
