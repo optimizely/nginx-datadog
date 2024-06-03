@@ -727,5 +727,64 @@ char *waf_thread_pool_name(ngx_conf_t *cf, ngx_command_t *command,
 }
 #endif
 
+#ifdef WITH_RUM
+char *set_datadog_rum_enable(ngx_conf_t *cf, ngx_command_t *command,
+                             void *conf) {
+  datadog_loc_conf_t *loc_conf = static_cast<datadog_loc_conf_t *>(conf);
+  loc_conf->rum_enable = true;
+  return NGX_CONF_OK;
+}
+
+char *set_datadog_rum_configuration(ngx_conf_t *cf, ngx_command_t *command,
+                                    void *conf) {
+  datadog_loc_conf_t *loc_conf = static_cast<datadog_loc_conf_t *>(conf);
+
+  ngx_str_t *values = (ngx_str_t *)(cf->args->elts);
+  char *file_location = (char *)values[1].data;
+
+  FILE *fp = fopen(file_location, "r");
+  if (fp == NULL) {
+    auto *err_msg =
+        static_cast<char *>(ngx_palloc(cf->pool, sizeof(char) * 256));
+    ngx_snprintf((u_char *)err_msg, 256, "error opening file \"%s\"",
+                 file_location);
+    return err_msg;
+  }
+
+  fseek(fp, 0, SEEK_END);
+  size_t file_size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  char *file_content = (char *)malloc(file_size * sizeof(char));
+  if (file_content == NULL) {
+    fclose(fp);
+
+    auto *err_msg =
+        static_cast<char *>(ngx_palloc(cf->pool, sizeof(char) * 256));
+    ngx_snprintf((u_char *)err_msg, 256,
+                 "failed to read configuration file \"%s\"", file_location);
+    return err_msg;
+  }
+
+  fread(file_content, sizeof(char), file_size, fp);
+  fclose(fp);
+
+  Snippet *snippet = snippet_create_from_json(file_content);
+
+  if (snippet->error_code) {
+    auto *err_msg =
+        static_cast<char *>(ngx_palloc(cf->pool, sizeof(char) * 256));
+    ngx_snprintf((u_char *)err_msg, 256,
+                 "failed to generate the RUM SDK script: %s",
+                 snippet->error_message);
+    return err_msg;
+  }
+
+  loc_conf->rum_snippet = snippet;
+
+  return NGX_CONF_OK;
+}
+#endif
+
 }  // namespace nginx
 }  // namespace datadog

@@ -12,6 +12,9 @@
 #ifdef WITH_WAF
 #include "security/context.h"
 #endif
+#ifdef WITH_RUM
+#include "rum/injection.h"
+#endif
 #include "string_util.h"
 
 namespace datadog {
@@ -32,13 +35,17 @@ void DatadogContext::on_change_block(ngx_http_request_t *request,
                                      datadog_loc_conf_t *loc_conf) {
   auto trace = find_trace(request);
   if (trace != nullptr) {
-    return trace->on_change_block(core_loc_conf, loc_conf);
+    trace->on_change_block(core_loc_conf, loc_conf);
+  } else {
+    // This is a new subrequest, so add a RequestTracing for it.
+    // TODO: Should `active_span` be `request_span` instead?
+    traces_.emplace_back(request, core_loc_conf, loc_conf,
+                         &traces_[0].active_span());
   }
 
-  // This is a new subrequest, so add a RequestTracing for it.
-  // TODO: Should `active_span` be `request_span` instead?
-  traces_.emplace_back(request, core_loc_conf, loc_conf,
-                       &traces_[0].active_span());
+#ifdef WITH_RUM
+  rum::on_rewrite_handler(request);
+#endif
 }
 
 #ifdef WITH_WAF
@@ -53,9 +60,19 @@ bool DatadogContext::on_main_req_access(ngx_http_request_t *request) {
 }
 #endif
 
+ngx_int_t DatadogContext::on_header_filter(
+    ngx_http_request_t *request,
+    ngx_http_output_header_filter_pt &next_filter) {
+#ifdef WITH_RUM
+  rum::on_header_filter(request, next_filter);
+#endif
+  return next_filter(request);
+}
+
+ngx_int_t DatadogContext::on_output_body_filter(
+    ngx_http_request_t *request, ngx_chain_t *chain,
+    ngx_http_output_body_filter_pt &next_body_filter) {
 #ifdef WITH_WAF
-ngx_int_t DatadogContext::main_output_body_filter(ngx_http_request_t *request,
-                                                  ngx_chain_t *chain) {
   if (!sec_ctx_) {
     return ngx_http_next_output_body_filter(request, chain);
   }
@@ -68,8 +85,14 @@ ngx_int_t DatadogContext::main_output_body_filter(ngx_http_request_t *request,
 
   dd::Span &span = trace->active_span();
   return sec_ctx_->output_body_filter(*request, chain, span);
-}
 #endif
+
+#ifdef WITH_RUM
+  return rum::on_body_filter(request, chain, next_body_filter);
+#endif
+
+  return next_body_filter(request, chain);
+}
 
 void DatadogContext::on_log_request(ngx_http_request_t *request) {
   auto trace = find_trace(request);

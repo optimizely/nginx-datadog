@@ -4,3 +4,6 @@
 [submodule "libddwaf"]
 	path = libddwaf
 	url = git@github.com:DataDog/libddwaf.git
+[submodule "inject-browser-sdk"]
+  path = deps/inject-browser-sdk
+  url = ../inject-browser-sdk.git
