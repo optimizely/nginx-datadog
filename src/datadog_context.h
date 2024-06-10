@@ -11,6 +11,10 @@
 #include "security/context.h"
 #endif
 
+#ifdef WITH_RUM
+#include "rum/injection.h"
+#endif
+
 extern "C" {
 #include <nginx.h>
 #include <ngx_config.h>
@@ -54,6 +58,7 @@ class DatadogContext {
 #ifdef WITH_WAF
   std::unique_ptr<security::Context> sec_ctx_;
 #endif
+  rum::Context rum_ctx_;
 
   RequestTracing* find_trace(ngx_http_request_t* request);
 

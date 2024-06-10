@@ -393,12 +393,12 @@ static ngx_command_t datadog_commands[] = {
 #ifdef WITH_RUM
     {
       ngx_string("datadog_rum"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       set_datadog_rum_enable, NGX_HTTP_LOC_CONF_OFFSET, 0, NULL
     },
     {
       ngx_string("datadog_rum_configuration"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       set_datadog_rum_configuration, NGX_HTTP_LOC_CONF_OFFSET, 0, NULL
     },
 #endif

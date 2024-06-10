@@ -766,7 +766,8 @@ char *set_datadog_rum_configuration(ngx_conf_t *cf, ngx_command_t *command,
     return err_msg;
   }
 
-  fread(file_content, sizeof(char), file_size, fp);
+  auto bytes_read = fread(file_content, sizeof(char), file_size, fp);
+  (void)bytes_read;
   fclose(fp);
 
   Snippet *snippet = snippet_create_from_json(file_content);

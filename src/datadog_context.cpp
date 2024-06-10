@@ -12,9 +12,6 @@
 #ifdef WITH_WAF
 #include "security/context.h"
 #endif
-#ifdef WITH_RUM
-#include "rum/injection.h"
-#endif
 #include "string_util.h"
 
 namespace datadog {
@@ -64,8 +61,9 @@ ngx_int_t DatadogContext::on_header_filter(
     ngx_http_request_t *request,
     ngx_http_output_header_filter_pt &next_filter) {
 #ifdef WITH_RUM
-  rum::on_header_filter(request, next_filter);
+  rum::on_header_filter(request, next_filter, rum_ctx_);
 #endif
+
   return next_filter(request);
 }
 
@@ -88,7 +86,7 @@ ngx_int_t DatadogContext::on_output_body_filter(
 #endif
 
 #ifdef WITH_RUM
-  return rum::on_body_filter(request, chain, next_body_filter);
+  return rum::on_body_filter(request, chain, next_body_filter, rum_ctx_);
 #endif
 
   return next_body_filter(request, chain);
