@@ -15,7 +15,7 @@ cmake_policy(SET CMP0135 NEW)
 project(ngx_http_datadog_module VERSION 1.2.0)
 
 option(NGINX_DATADOG_ASM_ENABLED "Build with libddwaf" ON)
-option(NGINX_DATADOG_RUM_ENABLED "Build with RUM injection" ON)
+option(NGINX_DATADOG_RUM_ENABLED "Build with RUM injection" OFF)
 set(NGINX_SRC_DIR "" CACHE PATH "The path to a directory with nginx sources")
 set(NGINX_VERSION "" CACHE STRING "The nginx version")
 if (NGINX_SRC_DIR STREQUAL "" AND NGINX_VERSION STREQUAL "")
