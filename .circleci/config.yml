@@ -157,7 +157,7 @@ jobs:
     - run: printf "ARCH=%s\nBASE_IMAGE=%s\n" << parameters.arch >> << parameters.base-image >> > nginx-version-info
     - setup_remote_docker:
         docker_layer_caching: true
-    - run: test/bin/run --verbose --failfast
+    - run: test/bin/run --verbose #--failfast
     - store_artifacts:
         path: test/logs/test.log
         destination: test.log

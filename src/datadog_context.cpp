@@ -25,6 +25,10 @@ DatadogContext::DatadogContext(ngx_http_request_t *request,
 #endif
 {
   traces_.emplace_back(request, core_loc_conf, loc_conf);
+
+#ifdef WITH_RUM
+  rum::on_rewrite_handler(request);
+#endif
 }
 
 void DatadogContext::on_change_block(ngx_http_request_t *request,
@@ -39,10 +43,6 @@ void DatadogContext::on_change_block(ngx_http_request_t *request,
     traces_.emplace_back(request, core_loc_conf, loc_conf,
                          &traces_[0].active_span());
   }
-
-#ifdef WITH_RUM
-  rum::on_rewrite_handler(request);
-#endif
 }
 
 #ifdef WITH_WAF

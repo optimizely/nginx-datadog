@@ -516,16 +516,16 @@ static ngx_int_t datadog_master_process_post_config(
   }
 #endif
 
+  return NGX_OK;
+}
+
+static ngx_int_t datadog_module_init(ngx_conf_t *cf) noexcept {
   ngx_http_next_header_filter = ngx_http_top_header_filter;
   ngx_http_top_header_filter = on_header_filter;
 
   ngx_http_next_output_body_filter = ngx_http_top_body_filter;
   ngx_http_top_body_filter = on_output_body_filter;
 
-  return NGX_OK;
-}
-
-static ngx_int_t datadog_module_init(ngx_conf_t *cf) noexcept {
   auto core_main_config = static_cast<ngx_http_core_main_conf_t *>(
       ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module));
   auto main_conf = static_cast<datadog_main_conf_t *>(

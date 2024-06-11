@@ -132,6 +132,7 @@ ngx_int_t on_header_filter(ngx_http_request_t *r,
 
   // TODO: investigate `filter_need_temporary`.
   r->filter_need_in_memory = 1;
+  // r->main_filter_need_in_memory = 1;
 
   return NGX_OK;
 }

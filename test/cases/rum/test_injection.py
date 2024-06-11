@@ -280,9 +280,12 @@ class TestRUMInjection(case.TestCase):
         status, lines = self.load_conf("rum_enabled.conf")
         self.assertEqual(0, status, lines)
 
+        import pdb
+
+        pdb.set_trace()
         status, _, body = self.orch.send_nginx_http_request("/big_chonk.html")
-        assert status == 200
-        assert compare(body, EXPECTED_BIG_CHONK)
+        self.assertEqual(200, status)
+        self.assertTrue(compare(body, EXPECTED_BIG_CHONK))
 
     def test_proxy_injection(self):
         """
