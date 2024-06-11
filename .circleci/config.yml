@@ -35,6 +35,11 @@ jobs:
         enum:
         - 'ON'
         - 'OFF'
+      rum:
+        type: enum
+        enum:
+        - 'ON'
+        - 'OFF'
     steps:
     - checkout
     - run: git submodule sync && git submodule update --init --recursive
@@ -69,12 +74,18 @@ jobs:
       ARCH: x86_64
       MAKE_JOB_COUNT: 8
       WAF: "<< parameters.waf >>"
+      RUM: "<< parameters.rum >>"
       NGINX_VERSION: "<< parameters.nginx-version >>"
   build_arm64:
     parameters:
       nginx-version:
         type: string
       waf:
+        type: enum
+        enum:
+        - 'ON'
+        - 'OFF'
+      rum:
         type: enum
         enum:
         - 'ON'
@@ -108,6 +119,7 @@ jobs:
       ARCH: aarch64
       MAKE_JOB_COUNT: 8
       WAF: "<< parameters.waf >>"
+      RUM: "<< parameters.rum >>"
       NGINX_VERSION: "<< parameters.nginx-version >>"
   coverage:
     environment:
@@ -115,6 +127,9 @@ jobs:
     steps:
     - checkout
     - run: git submodule sync && git submodule update --init --recursive
+    - run:
+        name: Install Python dependencies
+        command: pip install -r requirements.txt
     - run: echo -e "ARCH=amd64\nBASE_IMAGE=nginx:1.26.0\n" > nginx-version-info
     - run:
         command: 'make coverage'
@@ -124,6 +139,7 @@ jobs:
           BUILD_TYPE: RelWithDebInfo
           NGINX_VERSION: 1.26.0
           WAF: ON
+          RUM: ON
     - codecov/upload:
         upload_args: '--disable-search'
         file: .musl-build/coverage.lcov
@@ -149,6 +165,7 @@ jobs:
       # https://github.com/containers/podman/issues/13889
       DOCKER_BUILDKIT: 1
       WAF: "<< parameters.waf >>"
+      RUM: "<< parameters.rum >>"
     steps:
     - checkout
     - run:
