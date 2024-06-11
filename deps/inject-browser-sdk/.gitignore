@@ -1,0 +1,9 @@
+e2e_tests/test_assets/injector_IIS_installer.msi
+e2e_tests/vendor
+.idea
+lua
+lua_modules
+luarocks
+.luarocks
+node_modules
+.env

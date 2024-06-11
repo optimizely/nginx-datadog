@@ -1,0 +1,73 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="test.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\lib\native\src\gtest\gtest-all.cc">
+      <Filter>Dependencies</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\lib\native\src\gmock\gmock-all.cc">
+      <Filter>Dependencies</Filter>
+    </ClCompile>
+    <ClCompile Include="..\packages\gmock.1.11.0\lib\native\src\gtest\src\gtest_main.cc">
+      <Filter>Dependencies</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ruminjector.cpp">
+      <Filter>Dependencies</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+    <None Include="test-response.html">
+      <Filter>Test Files</Filter>
+    </None>
+    <None Include="test-response-expected-result.html">
+      <Filter>Test Files</Filter>
+    </None>
+    <None Include="test_config_dir\site_with_valid_config\rum-config.json">
+      <Filter>Test Files\test_config_dir\site_with_valid_config</Filter>
+    </None>
+    <None Include="test_config_dir_bad_json\site_with_bad_json\rum-config.json">
+      <Filter>Test Files\test_config_dir_bad_json\site_with_bad_json</Filter>
+    </None>
+    <None Include="test_config_dir_invalid_config\site_with_invalid_config\rum-config.json">
+      <Filter>Test Files\test_config_dir_invalid_config\site_with_invalid_config</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{989c53c4-ccee-402a-a9e5-b478f36d2efb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Dependencies">
+      <UniqueIdentifier>{274f5eb9-768c-46cd-913c-0a07b6a9ec42}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Test Files">
+      <UniqueIdentifier>{c400e19a-35c6-46ca-be79-2e87b0bbe2c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Test Files\test_config_dir">
+      <UniqueIdentifier>{c2fb312b-851b-43dd-930a-1fae8ee75879}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Test Files\test_config_dir\site_with_valid_config">
+      <UniqueIdentifier>{203071ca-a7d5-46e3-a505-1dd652ef31e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Test Files\test_config_dir_bad_json">
+      <UniqueIdentifier>{03db9f0e-ca1a-41dc-aeda-221efda3f4fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Test Files\test_config_dir_bad_json\site_with_bad_json">
+      <UniqueIdentifier>{8606ce28-1584-423e-bfa1-0edd9fd68d75}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Test Files\test_config_dir_invalid_config">
+      <UniqueIdentifier>{30610d20-b23c-4923-bbd2-73ea449cc2b1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Test Files\test_config_dir_invalid_config\site_with_invalid_config">
+      <UniqueIdentifier>{55d3b0db-c5bf-40a4-a80d-1ad687300181}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="mocks.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="testhelpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

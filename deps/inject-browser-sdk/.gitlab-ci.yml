@@ -1,0 +1,354 @@
+---
+stages:
+  - ci-image
+  - build
+  - test
+  - benchmark
+  - release
+
+variables:
+  WINDOWS_BUILD_IMAGE: datadog-agent-buildimages/windows_1809_x64
+  WINDOWS_BUILD_IMAGE_VERSION: v32377621-ce42cb8e
+  E2E_RUNNER_IMAGE: test-infra-definitions/runner
+  E2E_RUNNER_IMAGE_VERSION: dfdd12299b97
+  AGENT_RELEASE_IMAGE: datadog-agent-builders/gitlab_agent_deploy
+  AGENT_RELEASE_IMAGE_VERSION: v22276738-b36b132
+  ARTIFACTS_DIR: artifacts
+  REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
+  NIGHTHAWK_CI_IMAGE: "${REGISTRY}/ci/rum-browser-sdk-inject-envoy-nighthawk:latest"
+
+########################################
+# IIS build and test jobs
+########################################
+
+.IIS_build:
+  stage: build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: []
+  variables:
+    BUILD_CONFIGURATION: Release
+    ARCH: x64
+  script:
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - >
+      docker run --rm
+      -m 4096M
+      -v "$(Get-Location):c:\mnt"
+      -e BUILD_OUTDIR="c:\mnt\build-out\${CI_JOB_ID}"
+      -e BUILD_CONFIGURATION=$BUILD_CONFIGURATION
+      -e ARCH=$ARCH
+      -e TEST_DIR="c:\mnt\injector_IIS\test\"
+      -e WINDOWS_BUILDER=true
+      -e AWS_NETWORKING=true
+      ${REGISTRY}/ci/${WINDOWS_BUILD_IMAGE}:${WINDOWS_BUILD_IMAGE_VERSION}
+      c:\mnt\injector_IIS\build_scripts\build_injector_IIS.bat
+    # Copy output files to artifacts dir for use in later jobs
+    - if (Test-Path $ARTIFACTS_DIR) { remove-item -recurse -force $ARTIFACTS_DIR }
+    - mkdir $ARTIFACTS_DIR
+    - xcopy /e/s build-out\${CI_JOB_ID}\*.* $ARTIFACTS_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $ARTIFACTS_DIR
+
+
+injector_IIS_build:
+  extends: .IIS_build
+  rules:
+    - changes:
+      - scheduled
+      when: never
+    - changes:
+        - injector_IIS/**/*
+        - e2e_tests/**/*
+        - lib/**/*
+
+manual_injector_IIS_build:
+  extends: .IIS_build
+  when: manual
+
+.injector_IIS_unit_test_template:
+  stage: test
+  rules:
+    - changes:
+      - .gitlab-ci.yml
+      - injector_IIS/**/*
+      - lib/**/*
+  needs: []
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  script:
+    - >
+      docker run --rm
+      -m 4096M
+      -v "$(Get-Location):c:\mnt"
+      -v "$(Get-Location)\${ARTIFACTS_DIR}:c:\artifacts"
+      -e WINDOWS_BUILDER=true
+      -e AWS_NETWORKING=true
+      ${REGISTRY}/ci/${WINDOWS_BUILD_IMAGE}:${WINDOWS_BUILD_IMAGE_VERSION}
+      c:\mnt\injector_IIS\build_scripts\unit_test_injector_IIS.bat
+
+injector_IIS_unit_test:
+  extends: .injector_IIS_unit_test_template
+  needs: ["injector_IIS_build"]
+  rules:
+    - changes:
+      - scheduled
+      when: never
+    - changes:
+        - injector_IIS/**/*
+        - lib/**/*
+
+manual_injector_IIS_unit_test:
+  extends: .injector_IIS_unit_test_template
+  when: manual
+  needs: ["manual_injector_IIS_build"]
+
+.injector_IIS_e2e_test_template:
+  stage: test
+  tags: ["arch:amd64"]
+  needs: []
+  image: ${REGISTRY}/ci/${E2E_RUNNER_IMAGE}:${E2E_RUNNER_IMAGE_VERSION}
+  variables:
+    AWS_SSM_PREFIX: "ci.inject-browser-sdk."
+    KEY_PAIR_NAME: "ci.inject-browser-sdk"
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+  before_script:
+    # Read AWS config for agent-qa role from ddbuild's SSM, and then assume agent-qa role
+    - mkdir -p ~/.aws
+    - aws ssm get-parameter --region us-east-1 --name "${AWS_SSM_PREFIX}agent-qa-profile" --with-decryption --query "Parameter.Value" --out text >> ~/.aws/config
+    - export AWS_PROFILE="agent-qa-ci"
+    # Fetch SSH private and public keys from agent-qa's SSM
+    - mkdir -p ~/.ssh
+    - aws ssm get-parameter --region us-east-1 --name "${AWS_SSM_PREFIX}ssh_private_key" --with-decryption --query "Parameter.Value" --out text >> ~/.ssh/$KEY_PAIR_NAME
+    - aws ssm get-parameter --region us-east-1 --name "${AWS_SSM_PREFIX}ssh_public_key" --with-decryption --query "Parameter.Value" --out text >> ~/.ssh/${KEY_PAIR_NAME}.pub
+    - chmod 0400 ~/.ssh/$KEY_PAIR_NAME
+    - eval `ssh-agent -s`
+    - ssh-add ~/.ssh/$KEY_PAIR_NAME
+    # Use S3 backend to store stack status
+    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    # Define the environment variables which the E2E framework will use to build a testing profile
+    - export E2E_PROFILE="ci"
+    - export CI_SECRET_PREFIX=$AWS_SSM_PREFIX
+    - export E2E_KEY_PAIR_NAME=$KEY_PAIR_NAME
+    - export E2E_PUBLIC_KEY_PATH="/root/.ssh/${KEY_PAIR_NAME}.pub"
+  script:
+    - mkdir -p e2e_tests/test_assets
+    - cp ${ARTIFACTS_DIR}/injector_IIS_installer.msi e2e_tests/test_assets/injector_IIS_installer.msi
+    - cd e2e_tests && go test -v
+
+injector_IIS_e2e_test:
+  extends: .injector_IIS_e2e_test_template
+  rules:
+    - changes:
+      - scheduled
+      when: never
+    - changes:
+        - injector_IIS/**/*
+        - lib/**/*
+  needs: ["injector_IIS_build"]
+
+manual_injector_IIS_e2e_test:
+  extends: .injector_IIS_e2e_test_template
+  when: manual
+
+.injector_IIS_release:
+  stage: release
+  tags: ["arch:amd64"]
+  needs: []
+  image: ${REGISTRY}/ci/$AGENT_RELEASE_IMAGE:$AGENT_RELEASE_IMAGE_VERSION
+  when: manual
+  allow_failure: true
+  script:
+    - aws s3 cp
+      --region us-east-1
+      --sse AES256
+      --acl public-read
+      --recursive
+      --exclude "*"
+      --include "injector_IIS_installer.msi"
+      $ARTIFACTS_DIR
+      s3://$S3_BUCKET/$CI_PROJECT_NAME/$CI_PIPELINE_ID/$BUILD_CONFIGURATION/$ARCH/
+    - echo https://$S3_BUCKET.s3.amazonaws.com/$CI_PROJECT_NAME/$CI_PIPELINE_ID/$BUILD_CONFIGURATION/$ARCH/injector_IIS_installer.msi
+
+injector_IIS_release_beta:
+  extends: .injector_IIS_release
+  rules:
+    - changes:
+      - scheduled
+      when: never
+    - changes:
+        - injector_IIS/**/*
+        - lib/**/*
+  needs: ["injector_IIS_build"]
+  variables:
+    S3_BUCKET: ddagent-windows-unstable
+    BUILD_CONFIGURATION: Release
+    ARCH: x64
+
+manual_injector_IIS_release_beta:
+  extends: .injector_IIS_release
+  when: manual
+  variables:
+    S3_BUCKET: ddagent-windows-unstable
+    BUILD_CONFIGURATION: Release
+    ARCH: x64
+
+injector_IIS_release:
+  extends: .injector_IIS_release
+  rules:
+    - changes:
+      - scheduled
+      when: never
+    - changes:
+        - injector_IIS/**/*
+        - lib/**/*
+  needs: ["injector_IIS_build"]
+  variables:
+    S3_BUCKET: ddagent-windows-stable
+    BUILD_CONFIGURATION: Release
+    ARCH: x64
+
+manual_injector_IIS_release:
+  extends: .injector_IIS_release
+  when: manual
+  variables:
+    S3_BUCKET: ddagent-windows-stable
+    BUILD_CONFIGURATION: Release
+    ARCH: x64
+
+########################################
+# Java Servlet build and test jobs
+########################################
+
+injector_java_servlet_unit_test:
+  stage: test
+  needs: []
+  rules:
+    - changes:
+      - scheduled
+      when: never
+    - changes:
+        - injector_java_servlet/**/*
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/mirror/maven:3.9.5-eclipse-temurin-17
+  script:
+    - mvn --errors --batch-mode -f ./injector_java_servlet/pom.xml test
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - injector_java_servlet/**/target/surefire-reports/TEST-*.xml
+
+########################################
+# Envoy Lua Filter build and test jobs
+########################################
+
+.release_nighthawk_image_template:
+  stage: ci-image
+  image: "$BUILDENV_REGISTRY/images/docker:24.0.4-gbi-focal"
+  tags: ["arch:arm64"]
+  needs: []
+  before_script: []
+  script:
+    - VERSION_TAG="v${CI_PIPELINE_ID}-${CI_COMMIT_SHA:0:7}"
+    - FULL_IMAGE_TAG="$REGISTRY/ci/$IMAGE:$VERSION_TAG"
+    - docker buildx build
+      --file $DOCKER_FILE
+      --platform linux/arm64
+      --label target=build
+      --tag $FULL_IMAGE_TAG
+      --tag $REGISTRY/ci/$IMAGE:latest
+      --push
+      .
+
+release_nighthawk_image:
+  extends: .release_nighthawk_image_template
+  rules:
+    - if: $REPO_AUTORELEASE_IMAGE
+      when: always
+    - if: $CI_PIPELINE_SOURCE != "schedule"
+      when: manual
+  variables:
+    GIT_DEPTH: 0
+    REGISTRY: "registry.ddbuild.io"
+    IMAGE: "rum-browser-sdk-inject-envoy-nighthawk"
+    DOCKER_FILE: "ci/envoy-nighthawk/Dockerfile.nighthawk"
+
+.test_envoy_lua_filter_template:
+  stage: test
+  image: "${NIGHTHAWK_CI_IMAGE}"
+  tags: ["arch:arm64"]
+  needs: []
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $ARTIFACTS_DIR
+  script:
+    - export DATADOG_API_KEY=$(aws ssm get-parameter --region=us-east-1 --with-decryption --query=Parameter.Value --out=text --name=ci.browser-sdk.datadog_ci_api_key)
+    - export DATADOG_SITE="datadoghq.com"
+    - datadog-ci tag --level job --tags "team:rum-browser"
+    - mkdir -p ${ARTIFACTS_DIR}
+    - busted -v -C envoy-lua-filter -output junit | tee ${ARTIFACTS_DIR}/busted.xml
+    - luacheck --config envoy-lua-filter/.luacheckrc --formatter JUnit envoy-lua-filter/src envoy-lua-filter/spec | tee ${ARTIFACTS_DIR}/luacheck.xml
+
+test_envoy_lua_filter:
+  extends: .test_envoy_lua_filter_template
+  rules:
+    - changes:
+      - scheduled
+      when: never
+    - changes:
+        - envoy-lua-filter/**/*
+        - ci/**/*
+
+manual_test_envoy_lua_filter:
+  extends: .test_envoy_lua_filter_template
+  when: manual
+
+.benchmark_envoy_lua_filter_template:
+  stage: benchmark
+  image: "${NIGHTHAWK_CI_IMAGE}"
+  tags: ["arch:arm64"]
+  needs: []
+  variables:
+    KUBERNETES_CPU_REQUEST: 2
+    ROCKSPEC_DIR: envoy-lua-filter
+    NIGHTHAWK_SRC: /home/dog/nighthawk
+  artifacts:
+    expire_in: 1 weeks
+    paths:
+      - $ARTIFACTS_DIR
+    when: always
+  before_script:
+    export ARTIFACTS_DIR=$ARTIFACTS_DIR
+  script:
+    - git config --global --add safe.directory $(pwd) # to avoid git warning on merge-base
+    - export DATADOG_API_KEY=$(aws ssm get-parameter --region=us-east-1 --with-decryption --query=Parameter.Value --out=text --name=ci.browser-sdk.datadog_ci_api_key)
+    - export DATADOG_SITE="datadoghq.com"
+    - datadog-ci tag --level job --tags "team:rum-browser"
+    - mkdir -p ${ARTIFACTS_DIR}
+    - sh ./ci/envoy.benchmarks.sh
+    - node ./ci/envoy.benchmarks.js
+
+benchmark_envoy_lua_filter:
+  extends: .benchmark_envoy_lua_filter_template
+  needs: ["test_envoy_lua_filter"]
+  rules:
+    - changes:
+      - scheduled
+      when: never
+    - changes:
+        - envoy-lua-filter/**/*
+        - ci/**/*
+
+manual_benchmark_envoy_lua_filter:
+  extends: .benchmark_envoy_lua_filter_template
+  when: manual
+
+auto_benchmark_envoy_lua_filter:
+  extends: benchmark_envoy_lua_filter
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always

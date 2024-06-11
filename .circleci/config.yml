@@ -140,8 +140,8 @@ jobs:
           MAKE_JOB_COUNT: 8
           BUILD_TYPE: RelWithDebInfo
           NGINX_VERSION: 1.26.0
-          WAF: ON
-          RUM: OFF
+          WAF: OFF
+          RUM: ON
     - codecov/upload:
         upload_args: '--disable-search'
         file: .musl-build/coverage.lcov
@@ -223,9 +223,10 @@ workflows:
             - 1.24.0
             - 1.25.4
             waf:
-            - 'ON'
             - 'OFF'
-        name: build << matrix.nginx-version >> on amd64 WAF << matrix.waf >>
+            rum:
+            - 'ON'
+        name: build << matrix.nginx-version >> on amd64 RUM << matrix.rum >>
         filters:
           tags:
             ignore: "/^v[0-9]+\\.[0-9]+\\.[0-9]+/"
@@ -237,14 +238,15 @@ workflows:
             - 1.24.0
             - 1.25.4
             waf:
-            - 'ON'
             - 'OFF'
-        name: build << matrix.nginx-version >> on arm64 WAF << matrix.waf >>
+            rum:
+            - 'ON'
+        name: build << matrix.nginx-version >> on arm64 RUM << matrix.rum >>
         filters:
           tags:
             ignore: "/^v[0-9]+\\.[0-9]+\\.[0-9]+/"
     - coverage:
-        name: Coverage on 1.26.0 with WAF ON
+        name: Coverage on 1.26.0 with RUM ON
         filters:
           tags:
             ignore: "/^v[0-9]+\\.[0-9]+\\.[0-9]+/"
@@ -255,17 +257,18 @@ workflows:
             - amd64
             - arm64
             waf:
-            - 'ON'
             - 'OFF'
+            rum:
+            - 'ON'
             base-image:
             - nginx:1.25.4-alpine
             - nginx:1.25.4
             nginx-version:
             - 1.25.4
         name: test << matrix.nginx-version >> on << matrix.base-image >>:<< matrix.arch
-          >> WAF << matrix.waf >>
+          >> RUM << matrix.rum >>
         requires:
-        - build << matrix.nginx-version >> on << matrix.arch >> WAF << matrix.waf
+        - build << matrix.nginx-version >> on << matrix.arch >> RUM << matrix.rum
           >>
         filters:
           tags:
@@ -277,16 +280,17 @@ workflows:
             - amd64
             - arm64
             waf:
-            - 'ON'
             - 'OFF'
+            rum:
+            - 'ON'
             base-image:
             - amazonlinux:2.0.20230418.0
             nginx-version:
             - 1.22.1
         name: test << matrix.nginx-version >> on << matrix.base-image >>:<< matrix.arch
-          >> WAF << matrix.waf >>
+          >> RUM << matrix.rum >>
         requires:
-        - build << matrix.nginx-version >> on << matrix.arch >> WAF << matrix.waf
+        - build << matrix.nginx-version >> on << matrix.arch >> RUM << matrix.rum
           >>
         filters:
           tags:
@@ -298,15 +302,16 @@ workflows:
             - amd64
             - arm64
             waf:
-            - 'ON'
             - 'OFF'
+            rum:
+            - 'ON'
             base-image:
             - amazonlinux:2023.3.20240219.0
             nginx-version:
             - 1.24.0
-        name: test << matrix.nginx-version >> on << matrix.base-image >>:<< matrix.arch >> WAF << matrix.waf >>
+        name: test << matrix.nginx-version >> on << matrix.base-image >>:<< matrix.arch >> RUM << matrix.rum >>
         requires:
-        - build << matrix.nginx-version >> on << matrix.arch >> WAF << matrix.waf >>
+        - build << matrix.nginx-version >> on << matrix.arch >> RUM << matrix.rum >>
         filters:
           tags:
             ignore: "/^v[0-9]+\\.[0-9]+\\.[0-9]+/"

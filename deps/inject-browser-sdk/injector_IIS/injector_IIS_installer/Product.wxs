@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+	 xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+
+	 <!-- This section will allow us to set the msi version based on values set on the command
+	      line (which in turn would be derived from the git version).  Use a default value so
+		  that dev building still functions -->
+	<?if $(var.MAJ_VER) and $(var.MAJ_VER) != "" ?>
+		<?define VERSION_MAJOR = $(var.MAJ_VER) ?>
+		<?define VERSION_MINOR = $(var.MIN_VER) ?>
+		<?define VERSION_PATCH = $(var.PATCH_VER) ?>
+		<?define VERSION_NUMBER = $(var.VERSION_MAJOR).$(var.VERSION_MINOR).$(var.VERSION_PATCH).0 ?>
+		<?else ?>
+		<?define VERSION_MAJOR =0 ?>
+		<?define VERSION_MINOR =97 ?>
+		<?define VERSION_PATCH =1 ?>
+		<?define VERSION_NUMBER = $(var.VERSION_MAJOR).$(var.VERSION_MINOR).$(var.VERSION_PATCH).0 ?>
+    <?endif ?>
+	<?define UPGRADE_CODE=A5E2C93A-4340-4D15-BA17-F3CA858D09CA?>
+	<!-- Define the product details -->
+	<!--compiler generates-->
+	<Product Id="*"
+             Name="!(loc.ProductName)"
+			 Language="!(loc.LANG)"
+             Version="$(var.VERSION_NUMBER)"
+             Manufacturer="!(loc.ManufacturerName)"
+             UpgradeCode="$(var.UPGRADE_CODE)">
+		<!--MSI exec minimum-->
+		<Package Id="*"
+             Keywords="Installer"
+             Comments="!(loc.InstallerComment)"
+             Description="!(loc.ProductName) $(var.VERSION_NUMBER)"
+             Manufacturer="!(loc.ManufacturerName)"
+             InstallScope="perMachine"
+             InstallerVersion="400"
+             Languages="1033"
+             InstallPrivileges="elevated"
+             Compressed="yes" />
+
+		<!-- This removes entirely the previous version -->
+		<Upgrade Id="$(var.UPGRADE_CODE)">
+			<UpgradeVersion OnlyDetect='no'
+							Property='PREVIOUSFOUND'
+							Minimum='0.0.1' IncludeMinimum='yes'
+							Maximum="$(var.VERSION_NUMBER)" IncludeMaximum='yes'/>
+		</Upgrade>
+
+		<!-- Handle major upgrades -->
+		<MajorUpgrade DowngradeErrorMessage="A newer version of !(loc.ProductName) is already installed." />
+		<MediaTemplate EmbedCab="yes" />
+
+		<!-- Define the feature to be installed -->
+		<Feature Id="MainFeature" Title="Datadog RUM Feature" Level="1">
+			<ComponentRef Id="InjectorDLL" />
+			<ComponentRef Id="InjectorJSON" />
+		</Feature>
+
+		<Property Id="APPLICATIONDATADIRECTORY" />
+
+		<Property Id="WIXUI_INSTALLDIR" Value="PROJECTLOCATION" />
+		<UIRef Id="ProjectUI_InstallDir"/>
+    	<UI Id="ProjectUI_InstallDir">
+
+			<UIRef Id="WixUI_Common" />
+			<UIRef Id="WixUI_ErrorProgressText"/>
+			
+			<Property Id="DefaultUIFont">DlgFont8</Property>
+
+			<TextStyle Id="WixUI_Font_Normal_White" FaceName="Tahoma" Size="8" Red="255" Green="255" Blue="255" />
+			<TextStyle Id="WixUI_Font_Bigger_White" FaceName="Tahoma" Size="12" Red="255" Green="255" Blue="255" />
+			<TextStyle Id="WixUI_Font_Title_White" FaceName="Tahoma" Size="9" Bold="yes" Red="255" Green="255" Blue="255" />
+
+			<TextStyle Id="TahomaHeader" FaceName="Tahoma" Size="18" Bold="yes" />
+			<TextStyle Id="TahomaNormal" FaceName="Tahoma" Size="8" />
+
+			<TextStyle Id="DlgFont8" FaceName="Tahoma" Size="8" />
+			<TextStyle Id="DlgFont9" FaceName="Tahoma" Size="9" />
+			<TextStyle Id="DlgFontBold8" FaceName="Tahoma" Size="8" Bold="yes" />
+			<TextStyle Id="Verdana13Bold" FaceName="Verdana" Size="13" Bold="yes" />
+
+			<TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+			<TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+			<TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+
+
+			<?include assets\simpleeula.wxi ?>
+			<DialogRef Id="ErrorDlg" />
+			<DialogRef Id="FatalError" />
+			<DialogRef Id="FilesInUse" />
+			<DialogRef Id="MsiRMFilesInUse" />
+			<DialogRef Id="PrepareDlg" />
+			<DialogRef Id="ProgressDlg" />
+			<DialogRef Id="ResumeDlg" />
+			<DialogRef Id="UserExit" />
+			<DialogRef Id="WelcomeDlg" />
+			<DialogRef Id="CustomLicenseAgreementDlg"/>
+
+			<DialogRef Id="MaintenanceWelcomeDlg"/>
+			<DialogRef Id="MaintenanceTypeDlg"/>
+			<DialogRef Id="ResumeDlg"/>
+
+			<Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
+            <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+
+            <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+
+            <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="CustomLicenseAgreementDlg">NOT Installed</Publish>
+            <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
+
+            <Publish Dialog="CustomLicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+            <Publish Dialog="CustomLicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">CustomLicenseAccepted = "1"</Publish>
+
+            <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="CustomLicenseAgreementDlg">1</Publish>
+            <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+            <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="WixUIValidatePath" Order="2">NOT WIXUI_DONTVALIDATEPATH</Publish>
+            <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="3"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+            <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="4">WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"</Publish>
+            <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+            <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+            
+            <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="1">NOT Installed</Publish>
+            <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+            <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">Installed AND PATCH</Publish>
+
+            <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+
+            <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+            <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+            <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+
+			<AdminUISequence>
+				<Show Dialog="FatalError" OnExit="error" />
+				<Show Dialog="UserExit" OnExit="cancel" />
+				<Show Dialog="ExitDialog" OnExit="success" />
+				<Show Dialog="MaintenanceWelcomeDlg" After="CostFinalize" />
+				<Show Dialog ="ProgressDlg" After="MaintenanceWelcomeDlg" />
+			  </AdminUISequence>
+			  <InstallUISequence>
+				<Show Dialog="FatalError" OnExit="error" />
+				<Show Dialog="UserExit" OnExit="cancel" />
+				<Show Dialog="ExitDialog" OnExit="success" />
+		
+				<Show Dialog="WelcomeDlg" After="MigrateFeatureStates"><![CDATA[NOT Installed]]></Show>
+				<Show Dialog="MaintenanceWelcomeDlg" Before="ProgressDlg" >Installed AND NOT RESUME AND NOT Preselected AND NOT PATCH</Show>
+		
+				<!--
+				<Show Dialog="ResumeDlg" After="WelcomeDlg"><![CDATA[Installed AND (RESUME OR Preselected)]]></Show>
+				-->
+				<!--
+				<Show Dialog="MaintenanceWelcomeDlg" After="ResumeDlg"><![CDATA[Installed AND NOT RESUME AND NOT Preselected]]></Show>
+				<Show Dialog="ProgressDlg" After="MaintenanceWelcomeDlg" />
+				-->
+			  </InstallUISequence>
+
+			<Property Id="ARPNOMODIFY" Value="1" />
+
+		</UI>
+
+		<WixVariable Id="WixUILicenseRtf" Value="assets\license.rtf"/>
+		<Icon Id="project.ico" SourceFile="assets\project.ico"/>
+		
+		<WixVariable Id="WixUIDialogBmp" Value="assets\dialog_background.bmp" />
+		<WixVariable Id="WixUIBannerBmp" Value="assets\banner_background.bmp" />
+	
+		<Property Id="ARPPRODUCTICON" Value="project.ico" />
+		<Property Id="ARPURLINFOABOUT">https://datadoghq.com/</Property>
+		<Property Id="ARPHELPLINK">https://datadoghq.com/support/</Property>
+
+    
+		<!-- Define the directory structure -->
+		<Directory Id="TARGETDIR" Name="SourceDir">
+			<Directory Id="ProgramFiles64Folder">
+				<!-- Parent directory for injector.dll -->
+				<Directory Id="DatadogFolder" Name="!(loc.CompanyNameShort)">
+					<!-- Subdirectory for injector.dll -->
+					<Directory Id="PROJECTLOCATION" Name="!(loc.ProductName)"/>
+				</Directory>
+			</Directory>
+			<Directory Id="CommonAppDataFolder">
+				<!-- Subdirectory for injector.json -->
+				<Directory Id="APPLICATIONDATADIRECTORY" Name="!(loc.ProductName)"/>
+			</Directory>
+		</Directory>
+	</Product>
+
+		<!-- Define components and files to be installed -->
+		<Fragment>
+			<Component Id="InjectorDLL" Guid="{6664F998-97D1-4CAE-A7DD-FCA94A2C47FE}" Directory="PROJECTLOCATION">
+				<File Id="InjectorDLLFile" Name="injector_IIS.dll" Source="$(var.injector_IIS.TargetPath)" KeyPath="yes"/>
+				<RegistryValue Root="HKLM"
+				               Key="Software\!(loc.CompanyNameShort)\!(loc.ProductName)"
+							   Name="InstallPath"
+							   Type="string"
+							   Value="[PROJECTLOCATION]"/>
+				<RegistryValue Root="HKLM"
+				               Key="Software\!(loc.CompanyNameShort)\!(loc.ProductName)"
+							   Name="ConfigRoot"
+							   Type="string"
+							   Value="[APPLICATIONDATADIRECTORY]"/>
+			</Component>
+
+			<Component Id="InjectorJSON" Guid="{60E746F0-9673-4E94-826D-293E5E5EA34C}" Directory="APPLICATIONDATADIRECTORY" NeverOverwrite="yes" Permanent="yes">
+				<File Id="InjectorJSONFile" Name="example-config.json" Source="example-config.json" KeyPath="yes"/>
+			</Component>
+		</Fragment>
+</Wix>

@@ -9,7 +9,7 @@ PWD ?= $(shell pwd)
 NGINX_SRC_DIR ?= $(PWD)/nginx
 ARCH ?= $(shell arch)
 COVERAGE ?= OFF
-DOCKER_REPOS ?= public.ecr.aws/b1o7r7e0/nginx_musl_toolchain
+DOCKER_REPOS ?= datadog/docker-library
 
 SHELL := /bin/bash
 
@@ -82,13 +82,13 @@ build-musl-toolchain:
 
 .PHONY: build-push-musl-toolchain
 build-push-musl-toolchain:
-	docker build --progress=plain --platform linux/amd64 --build-arg ARCH=x86_64 -t $(DOCKER_REPOS):latest-amd64 build_env
-	docker push $(DOCKER_REPOS):latest-amd64
-	docker build --progress=plain --platform linux/arm64 --build-arg ARCH=aarch64 -t $(DOCKER_REPOS):latest-arm64 build_env
-	docker push $(DOCKER_REPOS):latest-arm64
+	docker build --progress=plain --platform linux/amd64 --build-arg ARCH=x86_64 -t $(DOCKER_REPOS):musl-latest-amd64 build_env
+	docker push $(DOCKER_REPOS):musl-latest-amd64
+	docker build --progress=plain --platform linux/arm64 --build-arg ARCH=aarch64 -t $(DOCKER_REPOS):musl-latest-arm64 build_env
+	docker push $(DOCKER_REPOS):musl-latest-arm64
 	docker buildx imagetools create -t $(DOCKER_REPOS):latest \
-		$(DOCKER_REPOS):latest-amd64 \
-		$(DOCKER_REPOS):latest-arm64
+		$(DOCKER_REPOS):musl-latest-amd64 \
+		$(DOCKER_REPOS):musl-latest-arm64
 
 .PHONY: build-musl
 build-musl:

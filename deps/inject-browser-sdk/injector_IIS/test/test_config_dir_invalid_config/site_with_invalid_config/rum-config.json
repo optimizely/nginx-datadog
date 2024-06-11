@@ -1,0 +1,6 @@
+{
+  "this_is": "valid_json",
+  "but": {
+    "it_is_not": "a_valid_configuration"
+  }
+}

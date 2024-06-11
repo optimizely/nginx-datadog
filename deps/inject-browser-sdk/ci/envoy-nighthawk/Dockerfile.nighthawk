@@ -1,0 +1,110 @@
+FROM registry.ddbuild.io/images/base/gbi-ubuntu_2204:release
+
+USER root
+
+ENV DEBIAN_FRONTEND noninteractive
+
+# Install github cli (https://github.com/cli/cli/blob/trunk/docs/install_linux.md#debian-ubuntu-linux-raspberry-pi-os-apt)
+RUN set -x \
+    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get -qq update \
+    && apt-get -qq -y install gh
+
+# Install deps
+RUN apt-get -qq -y install --no-install-recommends \
+  autoconf \
+  automake \
+  build-essential \
+  ca-certificates \
+  clang \
+  clang-format \
+  clang-tidy \
+  clang-tools \
+  cmake \
+  coreutils \
+  curl \
+  git \
+  gnupg \
+  jq \
+  libcap2-bin \
+  libreadline-dev \
+  libtool \
+  lld \
+  lldb \
+  llvm \
+  lua5.4 \
+  liblua5.4-dev \
+  make \
+  ninja-build \
+  patch \
+  python3-pip \
+  python3.10-venv \
+  unzip
+
+# Install Vault
+COPY --from=registry.ddbuild.io/images/mirror/hashicorp/vault:1.11.3@sha256:45fa0d67d3fcbcf2d6032554f15c7b827dc6d628fd162a204c0826d15af4e8a6 /bin/vault /bin/vault
+# Make vault runnable as non-root, as nighthawk requires a non-privileged user
+# Ref: https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/3415606489/Running+vault+in+a+CI+image+fails+with+operation+not+permitted
+RUN setcap cap_ipc_lock= /bin/vault
+
+# Install authanywhere
+RUN if [ $(uname -m) = x86_64 ]; then AAA="amd64"; else AAA="arm64"; fi; curl -OL "binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}" && mv "authanywhere-linux-${AAA}" /bin/authanywhere && chmod +x /bin/authanywhere
+
+# Install Nodejs apt repo
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+  && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_21.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+  && apt-get -qq update \
+  && apt-get -qq -y install nodejs
+
+# Install AWS cli
+RUN set -x \
+ && pip3 install awscli
+
+# Copy test server setup
+ENV ENVOY_LUA_FILTER="../../envoy-lua-filter"
+COPY --chmod=644 "$ENVOY_LUA_FILTER/envoy.yaml" /etc/envoy.yaml
+COPY --chmod=644 "$ENVOY_LUA_FILTER/src/datadog_rum.lua" /usr/local/lib/datadog_rum.lua
+COPY --chmod=644 "$ENVOY_LUA_FILTER/static/index.html" /var/www/index.html
+
+# Install Bazelisk
+RUN npm install -g @bazel/bazelisk
+
+# Install datadog-ci
+RUN npm install -g @datadog/datadog-ci
+
+# Build luarocks
+RUN curl -fsSL https://luarocks.github.io/luarocks/releases/luarocks-3.10.0.tar.gz | tar -xz \
+  && cd luarocks-3.10.0 \
+  && ./configure --with-lua-include=/usr/include/lua5.4 \
+  && make \
+  && make install
+
+# Install busted
+RUN luarocks install busted
+
+# Install luacheck
+RUN luarocks install luacheck
+
+# Allow adjusting niceness
+RUN echo "dog\t-\tnice\t0" >> /etc/security/limits.conf
+
+################################################
+############### NON-PRIVILEGED #################
+################################################
+
+USER dog
+
+# Build Nighthawk
+RUN cd /home/dog \
+  && git clone --depth=1 https://github.com/envoyproxy/nighthawk \
+  && cd nighthawk \
+  && sed -iE '/^EXTENSIONS = /a\
+    "envoy.filters.http.lua": "//source/extensions/filters/http/lua:config",' extensions_build_config.bzl\
+  && echo "build --config=clang" >> user.bazelrc \
+  && python3 -m venv ~/nighthawk_venv \
+  && . ~/nighthawk_venv/bin/activate \
+  && pip3 install exceptiongroup==1.2.0 \
+  && pip3 install -r tools/base/requirements.txt \
+  && ci/do_ci.sh build
