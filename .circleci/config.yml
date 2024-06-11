@@ -40,6 +40,7 @@ jobs:
         enum:
         - 'ON'
         - 'OFF'
+        default: 'OFF'
     steps:
     - checkout
     - run: git submodule sync && git submodule update --init --recursive
@@ -90,6 +91,7 @@ jobs:
         enum:
         - 'ON'
         - 'OFF'
+        default: 'OFF'
     steps:
     - checkout
     - run: git submodule sync && git submodule update --init --recursive
@@ -158,6 +160,7 @@ jobs:
         type: string
       waf:
         type: string
+        default: 'OFF'
     executor:
       name: docker-<< parameters.arch >>
       image: cimg/python:3.10.13
