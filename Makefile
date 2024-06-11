@@ -86,7 +86,7 @@ build-push-musl-toolchain:
 	docker push $(DOCKER_REPOS):musl-latest-amd64
 	docker build --progress=plain --platform linux/arm64 --build-arg ARCH=aarch64 -t $(DOCKER_REPOS):musl-latest-arm64 build_env
 	docker push $(DOCKER_REPOS):musl-latest-arm64
-	docker buildx imagetools create -t $(DOCKER_REPOS):latest \
+	docker buildx imagetools create -t $(DOCKER_REPOS):musl-latest \
 		$(DOCKER_REPOS):musl-latest-amd64 \
 		$(DOCKER_REPOS):musl-latest-arm64
 
@@ -101,7 +101,7 @@ build-musl:
 		--env RUM=$(RUM) \
 		--env COVERAGE=$(COVERAGE) \
 		--mount "type=bind,source=$(PWD),destination=/mnt/repo" \
-		$(DOCKER_REPOS):latest \
+		$(DOCKER_REPOS):musl-latest \
 		make -C /mnt/repo build-musl-aux
 
 # this is what's run inside the container nginx_musl_toolchain

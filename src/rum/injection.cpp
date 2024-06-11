@@ -86,10 +86,6 @@ ngx_chain_t *inject(Context &ctx, ngx_pool_t *pool, ngx_chain_t *in,
 ngx_int_t on_header_filter(ngx_http_request_t *r,
                            ngx_http_output_header_filter_pt &next_header_filter,
                            Context &ctx) {
-  ngx_log_t *log = r->connection->log;
-  ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0, "[rum][%V] on_header_filter start",
-                 &(r->uri));
-
   auto *cfg = static_cast<datadog_loc_conf_t *>(
       ngx_http_get_module_loc_conf(r, ngx_http_datadog_module));
   if (cfg == NULL) return NGX_ERROR;
@@ -102,7 +98,7 @@ ngx_int_t on_header_filter(ngx_http_request_t *r,
     return next_header_filter(r);
 
   if (dd_content_compressed(&r->headers_out)) {
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, log, 0,
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "could not inject in compressed html content");
     return next_header_filter(r);
   }
@@ -145,8 +141,6 @@ ngx_int_t on_header_filter(ngx_http_request_t *r,
 ngx_int_t on_body_filter(ngx_http_request_t *r, ngx_chain_t *in,
                          ngx_http_output_body_filter_pt &next_body_filter,
                          Context &ctx) {
-  ngx_log_t *log = r->connection->log;
-
   auto *cfg = static_cast<datadog_loc_conf_t *>(
       ngx_http_get_module_loc_conf(r, ngx_http_datadog_module));
   if (cfg == NULL) return NGX_ERROR;
@@ -180,8 +174,6 @@ ngx_int_t on_body_filter(ngx_http_request_t *r, ngx_chain_t *in,
       ll = &new_cl->next;
 
       if (result.injected) {
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0, "[rum][%V] on_body_filter 8",
-                       &(r->uri));
         ctx.injected = result.injected;
         return output(ctx, r, out, next_body_filter);
       }
