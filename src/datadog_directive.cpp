@@ -728,13 +728,6 @@ char *waf_thread_pool_name(ngx_conf_t *cf, ngx_command_t *command,
 #endif
 
 #ifdef WITH_RUM
-char *set_datadog_rum_enable(ngx_conf_t *cf, ngx_command_t *command,
-                             void *conf) {
-  datadog_loc_conf_t *loc_conf = static_cast<datadog_loc_conf_t *>(conf);
-  loc_conf->rum_enable = true;
-  return NGX_CONF_OK;
-}
-
 char *set_datadog_rum_configuration(ngx_conf_t *cf, ngx_command_t *command,
                                     void *conf) {
   datadog_loc_conf_t *loc_conf = static_cast<datadog_loc_conf_t *>(conf);

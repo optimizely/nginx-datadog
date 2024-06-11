@@ -1,4 +1,5 @@
 import hashlib
+import time
 import string
 
 from .. import case
@@ -8,6 +9,11 @@ from threading import Thread
 from queue import Queue
 from werkzeug import Request, Response
 from werkzeug.serving import make_server
+
+import logging
+
+log = logging.getLogger("werkzeug")
+log.disabled = True
 
 EXPECTED_BIG_CHONK = """<!DOCTYPE html>
 <html>
@@ -232,9 +238,12 @@ window.DD_RUM.onReady(function() {
 
 
 class TestRUMInjection(case.TestCase):
+    requires_rum = True
+
     def load_conf(self, conf_file):
         conf_path = Path(__file__).parent / "conf" / conf_file
-        return self.orch.nginx_replace_config(conf_path.read_text(), conf_path.name)
+        return self.orch.nginx_replace_config(conf_path.read_text(),
+                                              conf_path.name)
 
     def compute_sha256(self, input):
         sha256_hash = hashlib.sha256()
@@ -280,9 +289,6 @@ class TestRUMInjection(case.TestCase):
         status, lines = self.load_conf("rum_enabled.conf")
         self.assertEqual(0, status, lines)
 
-        import pdb
-
-        pdb.set_trace()
         status, _, body = self.orch.send_nginx_http_request("/big_chonk.html")
         self.assertEqual(200, status)
         self.assertTrue(compare(body, EXPECTED_BIG_CHONK))
@@ -318,8 +324,6 @@ class TestRUMInjection(case.TestCase):
         t = Thread(target=s.serve_forever)
         t.start()
 
-        # TODO: Fix me!
-        # r = requests.get(f"http://localhost:8080/proxy/{service['host']}:{service['port']}")
         status, lines = self.load_conf("rum_enabled.conf")
         self.assertEqual(0, status, lines)
 
@@ -329,9 +333,10 @@ class TestRUMInjection(case.TestCase):
         s.shutdown()
         t.join()
 
-        assert status == 200
+        self.assertEqual(status, 200)
         self.assertInjection(headers, body)
-        assert injection_header is not None and injection_header == "1"
+        self.assertTrue(injection_header is not None)
+        self.assertEqual(injection_header, "1")
 
     def test_injection_based_on_content_type(self):
         """
@@ -342,13 +347,14 @@ class TestRUMInjection(case.TestCase):
         status, lines = self.load_conf("rum_enabled.conf")
         self.assertEqual(0, status, lines)
 
-        status, headers, body = self.orch.send_nginx_http_request("/big_chonk.html")
+        status, headers, body = self.orch.send_nginx_http_request(
+            "/dd_logo_v_rgb.png")
         headers = self.make_dict_headers(headers)
-        assert status == 200
-        assert headers.get("x-datadog-sdk-injected") == None
-        assert (
-            self.compute_sha256(body)
-            == "6960ee3a3972860e4c024346c0fc96cd9c9383381975ee05254389ebdd7fb8ce"
+        self.assertEqual(status, 200)
+        self.assertTrue("x-datadog-sdk-injected" not in headers)
+        self.assertEqual(
+            self.compute_sha256(body.encode("utf8")),
+            "7fd70efd25882a7d05e38ead11eca64bbc2602d474592db3ce4c4a770a81a8de",
         )
 
     def test_injection_disabled(self):
@@ -359,7 +365,8 @@ class TestRUMInjection(case.TestCase):
         status, lines = self.load_conf("rum_enabled.conf")
         self.assertEqual(0, status, lines)
 
-        status, headers, body = self.orch.send_nginx_http_request("/big_chonk.html")
+        status, headers, body = self.orch.send_nginx_http_request(
+            "/disable-rum")
         headers = self.make_dict_headers(headers)
         assert status == 200
         assert headers.get("x-datadog-sdk-injected") == None

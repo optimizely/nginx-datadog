@@ -14,8 +14,8 @@ struct Context {
   ngx_uint_t injected{0};
   ngx_uint_t output_padding;
 
-  ngx_chain_t *busy;
-  ngx_chain_t *free;
+  ngx_chain_t *busy{nullptr};
+  ngx_chain_t *free{nullptr};
 
   Injector *injector{nullptr};
 };

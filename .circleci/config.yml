@@ -151,6 +151,9 @@ jobs:
       WAF: "<< parameters.waf >>"
     steps:
     - checkout
+    - run:
+        name: Install Python dependencies
+        command: pip install -r requirements.txt
     - attach_workspace:
         at: "/tmp/workspace"
     - run: mv -v /tmp/workspace/.musl-build/ngx_http_datadog_module.so* test/services/nginx/
@@ -170,7 +173,7 @@ jobs:
     - run:
         name: Install Python dependencies
         command: |
-          pip install yapf
+          pip install -r requirements.txt
           update-alternatives --install /usr/local/bin/yapf3 yapf3 /usr/local/bin/yapf 100
     - run: make lint
   shellcheck:
