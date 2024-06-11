@@ -58,7 +58,10 @@ class DatadogContext {
 #ifdef WITH_WAF
   std::unique_ptr<security::Context> sec_ctx_;
 #endif
+
+#ifdef WITH_RUM
   rum::Context rum_ctx_;
+#endif
 
   RequestTracing* find_trace(ngx_http_request_t* request);
 
