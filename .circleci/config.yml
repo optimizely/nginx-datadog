@@ -141,7 +141,7 @@ jobs:
           BUILD_TYPE: RelWithDebInfo
           NGINX_VERSION: 1.26.0
           WAF: ON
-          RUM: ON
+          RUM: OFF
     - codecov/upload:
         upload_args: '--disable-search'
         file: .musl-build/coverage.lcov
@@ -159,6 +159,8 @@ jobs:
       arch:
         type: string
       waf:
+        type: string
+      rum:
         type: string
         default: 'OFF'
     executor:
