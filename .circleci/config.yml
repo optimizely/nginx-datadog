@@ -3,6 +3,11 @@ version: 2.1
 orbs:
   codecov: codecov/codecov@4.1.0
 
+parameters:
+  build_all:
+    type: boolean
+    default: false
+
 release_tag_only: &release_tag_only
   filters:
     tags:
