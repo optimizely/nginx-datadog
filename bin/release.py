@@ -3,6 +3,8 @@
 """
 
 import re
+import typing
+import tarfile
 import argparse
 import itertools
 import json
@@ -25,7 +27,7 @@ class VerboseDict(dict):
         except KeyError as error:
             # In addition to the missing key, print the object itself.
             message = f"{repr(key)} is not in {self}"
-            error.args = (message, )
+            error.args = (message,)
             raise error
 
 
@@ -55,15 +57,7 @@ def get_git():
     exe_path = shutil.which("git")
     if exe_path is None:
         raise MissingDependency(
-            'The "git" command must be available to tag the release commit.')
-    return exe_path
-
-
-def get_tar():
-    exe_path = shutil.which("tar")
-    if exe_path is None:
-        raise MissingDependency(
-            'The "tar" command must be available to compress and archive the nginx module.'
+            'The "git" command must be available to tag the release commit.'
         )
     return exe_path
 
@@ -82,10 +76,7 @@ def send_ci_request(path, payload=None, method=None):
 
     API_URL = "https://circleci.com/api/v2"
     url = f"{API_URL}{path}"
-    request = urllib.request.Request(url,
-                                     data=payload,
-                                     headers=headers,
-                                     method=method)
+    request = urllib.request.Request(url, data=payload, headers=headers, method=method)
     print("+", request.get_method(), request.full_url, request.data or "")
 
     try:
@@ -98,9 +89,7 @@ def send_ci_request(path, payload=None, method=None):
     try:
         response_body = json.load(response, object_hook=VerboseDict)
     except Exception as error:
-        print(
-            f"Unable to parse response body from response with status {status}."
-        )
+        print(f"Unable to parse response body from response with status {status}.")
         raise
 
     if status < 200 or status > 299:
@@ -113,9 +102,7 @@ def send_ci_request_paged(path, payload=None, method=None):
     items = []
     query = ""
     while True:
-        _, response = send_ci_request(f"{path}{query}",
-                                      payload=payload,
-                                      method=method)
+        _, response = send_ci_request(f"{path}{query}", payload=payload, method=method)
         items += response["items"]
 
         next_page = response.get("next_page_token")
@@ -132,9 +119,16 @@ def download_file(url, destination):
         shutil.copyfileobj(response, output)
 
 
+def package(files: typing.List[str], output_filename: str) -> None:
+    with tarfile.open(output_filename, "w:gz") as tar:
+        for f in files:
+            tar.add(f, arcname=os.path.basename(f))
+
+
 def prepare_release_artifact(work_dir, build_job_number, version, arch, waf):
     artifacts = send_ci_request_paged(
-        f"/project/{PROJECT_SLUG}/{build_job_number}/artifacts")
+        f"/project/gh/DataDog/nginx-datadog/{build_job_number}/artifacts"
+    )
     module_url = None
     module_url_dbg = None
     for artifact in artifacts:
@@ -162,27 +156,18 @@ def prepare_release_artifact(work_dir, build_job_number, version, arch, waf):
     waf_suffix = "-appsec" if waf else ""
 
     tarball_path = (
-        work_dir /
-        f"ngx_http_datadog_module{waf_suffix}-{arch}-{version}.so.tgz")
-    command = [tar_exe, "-czf", tarball_path, "-C", work_dir, module_path.name]
-    run(command, check=True)
+        work_dir / f"ngx_http_datadog_module{waf_suffix}-{arch}-{version}.so.tgz"
+    )
 
+    package([module_path], tarball_path)
     command = [gpg_exe, "--armor", "--detach-sign", tarball_path]
     run(command, check=True)
 
     debug_tarball_path = (
-        work_dir /
-        f"ngx_http_datadog_module{waf_suffix}-{arch}-{version}.so.debug.tgz")
-    command = [
-        tar_exe,
-        "-czf",
-        debug_tarball_path,
-        "-C",
-        work_dir,
-        module_debug_path.name,
-    ]
-    run(command, check=True)
+        work_dir / f"ngx_http_datadog_module{waf_suffix}-{arch}-{version}.so.debug.tgz"
+    )
 
+    package([module_debug_path], debug_tarball_path)
     command = [gpg_exe, "--armor", "--detach-sign", debug_tarball_path]
     run(command, check=True)
 
@@ -195,13 +180,13 @@ def handle_job(job, work_dir):
     # https://circleci.com/docs/api/v2/index.html#operation/listWorkflowJobs
     if job["name"].startswith("build "):
         # name should be something like "build 1.25.4 on arm64 WAF ON"
-        match = re.match(r"build ([\d.]+) on (amd64|arm64) WAF (ON|OFF)",
-                         job["name"])
+        match = re.match(r"build ([\d.]+) on (amd64|arm64) WAF (ON|OFF)", job["name"])
         if match is None:
             raise Exception(f'Job name does not match regex "{re}": {job}')
         version, arch, waf = match.groups()
-        prepare_release_artifact(work_dir, job["job_number"], version, arch,
-                                 waf == "ON")
+        prepare_release_artifact(
+            work_dir, job["job_number"], version, arch, waf == "ON"
+        )
     return "done"
 
 
@@ -210,13 +195,14 @@ if __name__ == "__main__":
         description="Build and publish a release of nginx-datadog.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--version-tag", )
+    parser.add_argument(
+        "--version-tag",
+    )
     parser.add_argument("--ci-token", help="Circle CI Token", required=True)
     parser.add_argument(
         "workflow_id",
         type=str,
-        help=
-        "ID of the release workflow. Find in job url. Example: https://app.circleci.com/pipelines/github/DataDog/nginx-datadog/542/workflows/<WORKFLOW_ID>",
+        help="ID of the release workflow. Find in job url. Example: https://app.circleci.com/pipelines/github/DataDog/nginx-datadog/542/workflows/<WORKFLOW_ID>",
     )
     options = parser.parse_args()
 
@@ -225,20 +211,20 @@ if __name__ == "__main__":
         gh_exe = get_gh()
         gpg_exe = get_gpg()
         git_exe = get_git()
-        tar_exe = get_tar()
     except (MissingDependency, ValueError) as error:
         print(str(error), file=sys.stderr)
         sys.exit(1)
 
-    print({
-        "token": ci_api_token,
-        "gh": gh_exe,
-        "gpg": gpg_exe,
-        "git": git_exe,
-    })
+    print(
+        {
+            "token": ci_api_token,
+            "gh": gh_exe,
+            "gpg": gpg_exe,
+            "git": git_exe,
+        }
+    )
 
     workflow_id = options.workflow_id
-    PROJECT_SLUG = "gh/DataDog/nginx-datadog"
 
     with tempfile.TemporaryDirectory() as work_dir:
         print("Working directory is", work_dir)
@@ -248,6 +234,7 @@ if __name__ == "__main__":
 
         # Make sure all jobs run successfully
         for job in jobs:
+            job["workdir"] = Path(work_dir)
             if job["status"] != "success":
                 print("Found unsuccessful jobs")
                 sys.exit(1)
@@ -258,15 +245,14 @@ if __name__ == "__main__":
                 sys.exit(1)
 
         pubkey_file = os.path.join(work_dir, "pubkey.gpg")
-        run([gpg_exe, "--output", pubkey_file, "--armor", "--export"],
-            check=True)
+        run([gpg_exe, "--output", pubkey_file, "--armor", "--export"], check=True)
 
         # We've tgz'd and signed all of our release modules.
         # Now let's send them to GitHub in a release via `gh release create`.
         release_files = itertools.chain(
             Path(work_dir).glob("*.tgz"),
             Path(work_dir).glob("*.tgz.asc"),
-            (pubkey_file, ),
+            (pubkey_file,),
         )
 
         command = [
