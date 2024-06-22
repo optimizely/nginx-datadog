@@ -733,9 +733,9 @@ char *set_datadog_rum_configuration(ngx_conf_t *cf, ngx_command_t *command,
   datadog_loc_conf_t *loc_conf = static_cast<datadog_loc_conf_t *>(conf);
 
   ngx_str_t *values = (ngx_str_t *)(cf->args->elts);
-  char *file_location = (char *)values[1].data;
+  std::string_view file_location = to_string_view(values[1]);
 
-  FILE *fp = fopen(file_location, "r");
+  FILE *fp = fopen(file_location.data(), "r");
   if (fp == NULL) {
     auto *err_msg =
         static_cast<char *>(ngx_palloc(cf->pool, sizeof(char) * 256));
@@ -755,7 +755,8 @@ char *set_datadog_rum_configuration(ngx_conf_t *cf, ngx_command_t *command,
     auto *err_msg =
         static_cast<char *>(ngx_palloc(cf->pool, sizeof(char) * 256));
     ngx_snprintf((u_char *)err_msg, 256,
-                 "failed to read configuration file \"%s\"", file_location);
+                 "failed to read configuration file \"%s\"",
+                 file_location.data());
     return err_msg;
   }
 
@@ -775,6 +776,7 @@ char *set_datadog_rum_configuration(ngx_conf_t *cf, ngx_command_t *command,
   }
 
   loc_conf->rum_snippet = snippet;
+  loc_conf->rum_config_file = to_ngx_str(cf->pool, file_location);
 
   return NGX_CONF_OK;
 }

@@ -23,11 +23,12 @@ static bool is_datadog_enabled(const ngx_http_request_t *request,
                                const datadog_loc_conf_t *loc_conf) noexcept {
   // Check if this is a main request instead of a subrequest.
   if (request == request->main) {
-    return loc_conf->enable;
+    return loc_conf->enable || loc_conf->rum_enable;
   } else {
     // Only trace subrequests if `log_subrequest` is enabled; otherwise the
     // spans won't be finished.
-    return loc_conf->enable && core_loc_conf->log_subrequest;
+    return (loc_conf->enable && core_loc_conf->log_subrequest) ||
+           loc_conf->rum_enable;
   }
 }
 
@@ -41,7 +42,9 @@ ngx_int_t on_enter_block(ngx_http_request_t *request) noexcept try {
 
   auto context = get_datadog_context(request);
   if (context == nullptr) {
-    context = new DatadogContext{request, core_loc_conf, loc_conf};
+    context = new DatadogContext{request, core_loc_conf, loc_conf,
+                                 ngx_http_next_header_filter,
+                                 ngx_http_next_output_body_filter};
     set_datadog_context(request, context);
   } else {
     try {
@@ -104,7 +107,7 @@ ngx_int_t on_header_filter(ngx_http_request_t *request) noexcept {
   }
 
   try {
-    return context->on_header_filter(request, ngx_http_next_header_filter);
+    return context->on_header_filter(request);
   } catch (const std::exception &e) {
     ngx_log_error(NGX_LOG_ERR, request->connection->log, 0,
                   "Datadog instrumentation failed for request %p: %s", request,
@@ -125,8 +128,7 @@ ngx_int_t on_output_body_filter(ngx_http_request_t *request,
   }
 
   try {
-    return context->on_output_body_filter(request, chain,
-                                          ngx_http_next_output_body_filter);
+    return context->on_output_body_filter(request, chain);
   } catch (const std::exception &e) {
     ngx_log_error(NGX_LOG_ERR, request->connection->log, 0,
                   "Datadog instrumentation failed for request %p: %s", request,

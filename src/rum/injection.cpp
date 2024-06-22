@@ -7,9 +7,6 @@ extern "C" {
 #include "datadog_conf.h"
 #include "ngx_http_datadog_module.h"
 
-ngx_http_output_header_filter_pt ngx_http_next_header_filter;
-ngx_http_output_body_filter_pt ngx_http_next_body_filter;
-
 namespace datadog {
 namespace nginx {
 namespace rum {
@@ -30,21 +27,137 @@ ngx_int_t dd_content_compressed(ngx_http_headers_out_t *headers) {
           ngx_strncasecmp(headers->content_encoding->value.data,
                           (u_char *)"gzip", 4) == 0);
 }
+}  // namespace
 
-ngx_int_t output(Context &ctx, ngx_http_request_t *r, ngx_chain_t *out,
-                 ngx_http_output_body_filter_pt &next_body_filter) {
+InjectionHandler::InjectionHandler()
+    : output_padding_(false),
+      busy_(nullptr),
+      free_(nullptr),
+      injector_(nullptr) {}
+
+ngx_int_t InjectionHandler::on_header_filter(
+    ngx_http_request_t *r, datadog_loc_conf_t *cfg,
+    ngx_http_output_header_filter_pt &next_header_filter) {
+  if (!cfg->rum_enable || cfg->rum_snippet == NULL)
+    return next_header_filter(r);
+
+  if (r->header_only || r->headers_out.content_length_n == 0 ||
+      dd_validate_content_type(&r->headers_out.content_type) == 0)
+    return next_header_filter(r);
+
+  if (dd_content_compressed(&r->headers_out)) {
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "could not inject in compressed html content");
+    return next_header_filter(r);
+  }
+
+  state_ = state::searching;
+  injector_ = injector_create(cfg->rum_snippet);
+
+  // In case `Transfer-Encoding: chunk` is enabled no need to update the content
+  // length.
+  if (r->headers_out.content_length_n != -1) {
+    output_padding_ = true;
+    r->headers_out.content_length_n += cfg->rum_snippet->length;
+  }
+
+  // Set header now 'cause it will be too late after
+  auto *h =
+      static_cast<ngx_table_elt_t *>(ngx_list_push(&r->headers_out.headers));
+  if (h == NULL) {
+    state_ = state::error;
+    return NGX_ERROR;
+  }
+
+  h->hash = 1;
+  ngx_str_set(&h->key, "x-datadog-sdk-injected");
+  ngx_str_set(&h->value, "1");
+
+  // If `filter_need_in_memory` is not set, the filter can be called on with a
+  // buffer a file. The following explicitly ask for the buffer to in memory,
+  // thus after the file has been read by `ngx_http_copy_filter_module`.
+  r->filter_need_in_memory = 1;
+
+  return NGX_OK;
+}
+
+ngx_int_t InjectionHandler::on_body_filter(
+    ngx_http_request_t *r, datadog_loc_conf_t *cfg, ngx_chain_t *in,
+    ngx_http_output_body_filter_pt &next_body_filter) {
+  if (!cfg->rum_enable || in == NULL || state_ != state::searching) {
+    return next_body_filter(r, in);
+  }
+
+  ngx_chain_t *out;
+  ngx_chain_t *lp = NULL;
+  ngx_chain_t **ll = &out;
+  InjectorResult result;
+
+  for (ngx_chain_t *cl = in; cl; cl = cl->next) {
+    lp = cl;
+
+    result = injector_write(injector_, (uint8_t *)cl->buf->pos,
+                            (uint32_t)(cl->buf->last - cl->buf->pos));
+
+    // TODO: It seems the `injector` always return something even if it did not
+    // found an injection point. This results in unncessary copy.
+    if (result.slices_length == 0) {
+      *ll = cl;
+      ll = &cl->next;
+    } else {
+      ngx_chain_t *new_cl =
+          inject(r->pool, cl, result.slices, result.slices_length);
+
+      *ll = new_cl;
+      ll = &new_cl->next;
+
+      if (result.injected) {
+        state_ = state::injected;
+        return output(r, out, next_body_filter);
+      }
+    }
+  }
+
+  // No need for padding -> no need to call `injector_end`.
+  if (output_padding_ && lp->buf->last_buf) {
+    result = injector_end(injector_);
+    *ll = inject(r->pool, lp, result.slices, result.slices_length);
+  }
+
+  return output(r, out, next_body_filter);
+}
+
+ngx_int_t InjectionHandler::on_rewrite_handler(ngx_http_request_t *r) {
+  ngx_table_elt_t *h =
+      static_cast<ngx_table_elt_t *>(ngx_list_push(&r->headers_in.headers));
+  if (h == NULL) {
+    return NGX_ERROR;
+  }
+
+  h->hash = 1;
+  h->lowcase_key = (u_char *)"x-datadog-sdk-injection";
+  ngx_str_set(&h->key, "x-datadog-sdk-injection");
+  ngx_str_set(&h->value, "1");
+
+  return NGX_DECLINED;
+}
+
+ngx_int_t InjectionHandler::output(
+    ngx_http_request_t *r, ngx_chain_t *out,
+    ngx_http_output_body_filter_pt &next_body_filter) {
   ngx_int_t rc = next_body_filter(r, out);
-  ngx_chain_update_chains(r->pool, &ctx.free, &ctx.busy, &out,
+  ngx_chain_update_chains(r->pool, &free_, &busy_, &out,
                           (ngx_buf_tag_t)&ngx_http_datadog_module);
   return rc;
 }
 
-ngx_chain_t *inject(Context &ctx, ngx_pool_t *pool, ngx_chain_t *in,
-                    const BytesSlice *slices, uint32_t slices_length) {
+ngx_chain_t *InjectionHandler::inject(ngx_pool_t *pool, ngx_chain_t *in,
+                                      const BytesSlice *slices,
+                                      uint32_t slices_length) {
   ngx_chain_t *out;
   ngx_chain_t **ll = &out;
 
-  ngx_chain_t *cl = ngx_chain_get_free_buf(pool, &(ctx.free));
+  ngx_chain_t *cl = ngx_chain_get_free_buf(pool, &(free_));
   if (cl == NULL) {
     /* TBD */
   }
@@ -79,141 +192,6 @@ ngx_chain_t *inject(Context &ctx, ngx_pool_t *pool, ngx_chain_t *in,
   }
 
   return out;
-}
-
-}  // namespace
-
-ngx_int_t on_header_filter(ngx_http_request_t *r,
-                           ngx_http_output_header_filter_pt &next_header_filter,
-                           Context &ctx) {
-  auto *cfg = static_cast<datadog_loc_conf_t *>(
-      ngx_http_get_module_loc_conf(r, ngx_http_datadog_module));
-  if (cfg == NULL) return NGX_ERROR;
-
-  if (!cfg->rum_enable || cfg->rum_snippet == NULL)
-    return next_header_filter(r);
-
-  if (r->header_only || r->headers_out.content_length_n == 0 ||
-      dd_validate_content_type(&r->headers_out.content_type) == 0)
-    return next_header_filter(r);
-
-  if (dd_content_compressed(&r->headers_out)) {
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "could not inject in compressed html content");
-    return next_header_filter(r);
-  }
-
-  ctx.injected = 0;
-  ctx.enabled = true;
-  ctx.injector = injector_create(cfg->rum_snippet);
-
-  // In case `Transfer-Encoding: chunk` is enabled no need to update the content
-  // length.
-  if (r->headers_out.content_length_n != -1) {
-    ctx.output_padding = 1;
-    r->headers_out.content_length_n += cfg->rum_snippet->length;
-  } else {
-    ctx.output_padding = 0;
-  }
-
-  // Set header now 'cause it will be too late after
-  auto *h =
-      static_cast<ngx_table_elt_t *>(ngx_list_push(&r->headers_out.headers));
-  if (h == NULL) {
-    return NGX_ERROR;
-  }
-
-  h->hash = 1;
-  ngx_str_set(&h->key, "x-datadog-sdk-injected");
-  ngx_str_set(&h->value, "1");
-
-  // TODO: investigate `filter_need_temporary`.
-  r->filter_need_in_memory = 1;
-  // r->main_filter_need_in_memory = 1;
-
-  ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0, "[rum][%V] on_header_filter end",
-                 &(r->uri));
-  return NGX_OK;
-}
-
-// TODO: lots of copy involved. A better implementation should only copy and
-// insert the snippet.
-ngx_int_t on_body_filter(ngx_http_request_t *r, ngx_chain_t *in,
-                         ngx_http_output_body_filter_pt &next_body_filter,
-                         Context &ctx) {
-  auto *cfg = static_cast<datadog_loc_conf_t *>(
-      ngx_http_get_module_loc_conf(r, ngx_http_datadog_module));
-  if (cfg == NULL) return NGX_ERROR;
-
-  if (!cfg->rum_enable) return next_body_filter(r, in);
-
-  if (in == NULL || ctx.enabled == false || ctx.injected == 1)
-    return next_body_filter(r, in);
-
-  ngx_chain_t *out;
-  ngx_chain_t *lp = NULL;
-  ngx_chain_t **ll = &out;
-  InjectorResult result;
-
-  for (ngx_chain_t *cl = in; cl; cl = cl->next) {
-    lp = cl;
-
-    result = injector_write(ctx.injector, (uint8_t *)cl->buf->pos,
-                            (uint32_t)(cl->buf->last - cl->buf->pos));
-
-    // TODO: It seems the `injector` always return something even if it did not
-    // found an injection point. Not ideal.
-    if (result.slices_length == 0) {
-      *ll = cl;
-      ll = &cl->next;
-    } else {
-      ngx_chain_t *new_cl =
-          inject(ctx, r->pool, cl, result.slices, result.slices_length);
-
-      *ll = new_cl;
-      ll = &new_cl->next;
-
-      if (result.injected) {
-        ctx.injected = result.injected;
-        return output(ctx, r, out, next_body_filter);
-      }
-    }
-  }
-
-  // No need for padding -> no need to call `injector_end`.
-  if (ctx.output_padding && lp->buf->last_buf) {
-    result = injector_end(ctx.injector);
-
-    *ll = inject(ctx, r->pool, lp, result.slices, result.slices_length);
-  }
-
-  return output(ctx, r, out, next_body_filter);
-}
-
-ngx_int_t on_rewrite_handler(ngx_http_request_t *r) {
-  auto *cfg = static_cast<datadog_loc_conf_t *>(
-      ngx_http_get_module_loc_conf(r, ngx_http_datadog_module));
-  if (cfg == NULL) {
-    // NOTE(@dmehala): error or declined? What's the implication of error here?
-    return NGX_ERROR;
-  }
-
-  if (!cfg->rum_enable) {
-    return NGX_DECLINED;
-  }
-
-  ngx_table_elt_t *h =
-      static_cast<ngx_table_elt_t *>(ngx_list_push(&r->headers_in.headers));
-  if (h == NULL) {
-    return NGX_ERROR;
-  }
-
-  h->hash = 1;
-  h->lowcase_key = (u_char *)"x-datadog-sdk-injection";
-  ngx_str_set(&h->key, "x-datadog-sdk-injection");
-  ngx_str_set(&h->value, "1");
-
-  return NGX_DECLINED;
 }
 
 }  // namespace rum

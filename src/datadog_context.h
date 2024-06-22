@@ -29,7 +29,9 @@ class DatadogContext {
  public:
   DatadogContext(ngx_http_request_t* request,
                  ngx_http_core_loc_conf_t* core_loc_conf,
-                 datadog_loc_conf_t* loc_conf);
+                 datadog_loc_conf_t* loc_conf,
+                 ngx_http_output_header_filter_pt next_header_filter,
+                 ngx_http_output_body_filter_pt next_body_filter);
 
   void on_change_block(ngx_http_request_t* request,
                        ngx_http_core_loc_conf_t* core_loc_conf,
@@ -39,12 +41,10 @@ class DatadogContext {
   bool on_main_req_access(ngx_http_request_t* request);
 #endif
 
-  ngx_int_t on_header_filter(ngx_http_request_t* request,
-                             ngx_http_output_header_filter_pt& next_filter);
+  ngx_int_t on_header_filter(ngx_http_request_t* request);
 
   ngx_int_t on_output_body_filter(ngx_http_request_t* request,
-                                  ngx_chain_t* chain,
-                                  ngx_http_output_body_filter_pt& next_output);
+                                  ngx_chain_t* chain);
 
   void on_log_request(ngx_http_request_t* request);
 
@@ -54,13 +54,16 @@ class DatadogContext {
   RequestTracing& single_trace();
 
  private:
+  ngx_http_output_header_filter_pt next_header_filter_;
+  ngx_http_output_body_filter_pt next_body_filter_;
+
   std::vector<RequestTracing> traces_;
 #ifdef WITH_WAF
   std::unique_ptr<security::Context> sec_ctx_;
 #endif
 
 #ifdef WITH_RUM
-  rum::Context rum_ctx_;
+  rum::InjectionHandler rum_ctx_;
 #endif
 
   RequestTracing* find_trace(ngx_http_request_t* request);

@@ -826,6 +826,7 @@ static char *merge_datadog_loc_conf(ngx_conf_t *cf, void *parent,
 
 #ifdef WITH_RUM
   ngx_conf_merge_value(conf->rum_enable, prev->rum_enable, 0);
+  ngx_conf_merge_str_value(conf->rum_config_file, prev->rum_config_file, "");
   if (conf->rum_snippet == nullptr) {
     conf->rum_snippet = prev->rum_snippet;
   }

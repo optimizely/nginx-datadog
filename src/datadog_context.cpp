@@ -17,17 +17,34 @@
 namespace datadog {
 namespace nginx {
 
-DatadogContext::DatadogContext(ngx_http_request_t *request,
-                               ngx_http_core_loc_conf_t *core_loc_conf,
-                               datadog_loc_conf_t *loc_conf)
+DatadogContext::DatadogContext(
+    ngx_http_request_t *request, ngx_http_core_loc_conf_t *core_loc_conf,
+    datadog_loc_conf_t *loc_conf,
+    ngx_http_output_header_filter_pt next_header_filter,
+    ngx_http_output_body_filter_pt next_body_filter)
+    : next_header_filter_(next_header_filter),
+      next_body_filter_(next_body_filter)
 #ifdef WITH_WAF
-    : sec_ctx_{security::Context::maybe_create()}
+      ,
+      sec_ctx_{security::Context::maybe_create()}
 #endif
 {
   traces_.emplace_back(request, core_loc_conf, loc_conf);
 
 #ifdef WITH_RUM
-  rum::on_rewrite_handler(request);
+  if (loc_conf->rum_enable) {
+    auto *trace = find_trace(request);
+    if (trace != nullptr) {
+      auto rum_span = trace->active_span().create_child();
+      rum_span.set_name("rum_sdk_injection.on_rewrite_handler");
+      auto status = rum_ctx_.on_rewrite_handler(request);
+      if (status == NGX_ERROR) {
+        rum_span.set_error(true);
+      }
+    } else {
+      rum_ctx_.on_rewrite_handler(request);
+    }
+  }
 #endif
 }
 
@@ -57,19 +74,40 @@ bool DatadogContext::on_main_req_access(ngx_http_request_t *request) {
 }
 #endif
 
-ngx_int_t DatadogContext::on_header_filter(
-    ngx_http_request_t *request,
-    ngx_http_output_header_filter_pt &next_filter) {
+ngx_int_t DatadogContext::on_header_filter(ngx_http_request_t *request) {
+  auto *loc_conf = static_cast<datadog_loc_conf_t *>(
+      ngx_http_get_module_loc_conf(request, ngx_http_datadog_module));
+  if (loc_conf == nullptr) {
+    // TODO: log an error
+    return next_header_filter_(request);
+  }
+
 #ifdef WITH_RUM
-  rum::on_header_filter(request, next_filter, rum_ctx_);
+  auto *trace = find_trace(request);
+  if (trace != nullptr) {
+    auto rum_span = trace->active_span().create_child();
+    rum_span.set_name("rum_sdk_injection.on_header");
+    auto status =
+        rum_ctx_.on_header_filter(request, loc_conf, next_header_filter_);
+    if (status == NGX_ERROR) {
+      rum_span.set_error(true);
+    }
+  } else {
+    rum_ctx_.on_header_filter(request, loc_conf, next_header_filter_);
+  }
 #endif
 
-  return next_filter(request);
+  return next_header_filter_(request);
 }
 
-ngx_int_t DatadogContext::on_output_body_filter(
-    ngx_http_request_t *request, ngx_chain_t *chain,
-    ngx_http_output_body_filter_pt &next_body_filter) {
+ngx_int_t DatadogContext::on_output_body_filter(ngx_http_request_t *request,
+                                                ngx_chain_t *chain) {
+  auto *loc_conf = static_cast<datadog_loc_conf_t *>(
+      ngx_http_get_module_loc_conf(request, ngx_http_datadog_module));
+  if (loc_conf == nullptr) {
+    // TODO: log an error
+    return next_body_filter_(request, chain);
+  }
 #ifdef WITH_WAF
   if (!sec_ctx_) {
     return ngx_http_next_output_body_filter(request, chain);
@@ -86,10 +124,25 @@ ngx_int_t DatadogContext::on_output_body_filter(
 #endif
 
 #ifdef WITH_RUM
-  return rum::on_body_filter(request, chain, next_body_filter, rum_ctx_);
+  auto *trace = find_trace(request);
+  if (trace != nullptr) {
+    auto rum_span = trace->active_span().create_child();
+    rum_span.set_name("rum_sdk_injection.on_body_filter");
+    rum_span.set_tag("configuration.location",
+                     to_string_view(loc_conf->rum_config_file));
+    rum_span.set_tag("configuration.length",
+                     std::to_string(loc_conf->rum_snippet->length));
+    auto status =
+        rum_ctx_.on_body_filter(request, loc_conf, chain, next_body_filter_);
+    if (status == NGX_ERROR) {
+      rum_span.set_error(true);
+    }
+  } else {
+    return rum_ctx_.on_body_filter(request, loc_conf, chain, next_body_filter_);
+  }
 #endif
 
-  return next_body_filter(request, chain);
+  return next_body_filter_(request, chain);
 }
 
 void DatadogContext::on_log_request(ngx_http_request_t *request) {

@@ -243,6 +243,7 @@ struct datadog_loc_conf_t {
 
 #ifdef WITH_RUM
   ngx_flag_t rum_enable;
+  ngx_str_t rum_config_file;
   Snippet *rum_snippet;
 #endif
 };
