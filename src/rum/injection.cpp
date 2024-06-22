@@ -6,6 +6,7 @@ extern "C" {
 
 #include "datadog_conf.h"
 #include "ngx_http_datadog_module.h"
+#include "utils.h"
 
 namespace datadog {
 namespace nginx {
@@ -22,7 +23,7 @@ ngx_int_t dd_validate_content_type(ngx_str_t *content_type) {
 // TODO: Add support for other `Content-Encoding`.
 // More details: https://en.wikipedia.org/wiki/HTTP_compression
 ngx_int_t dd_content_compressed(ngx_http_headers_out_t *headers) {
-  return (headers->content_encoding != NULL &&
+  return (headers->content_encoding != nullptr &&
           headers->content_encoding->value.len != 4 &&
           ngx_strncasecmp(headers->content_encoding->value.data,
                           (u_char *)"gzip", 4) == 0);
@@ -35,10 +36,25 @@ InjectionHandler::InjectionHandler()
       free_(nullptr),
       injector_(nullptr) {}
 
+ngx_int_t InjectionHandler::on_rewrite_handler(ngx_http_request_t *r) {
+  ngx_table_elt_t *h =
+      static_cast<ngx_table_elt_t *>(ngx_list_push(&r->headers_in.headers));
+  if (h == nullptr) {
+    return NGX_ERROR;
+  }
+
+  h->hash = 1;
+  h->lowcase_key = (u_char *)"x-datadog-sdk-injection";
+  ngx_str_set(&h->key, "x-datadog-sdk-injection");
+  ngx_str_set(&h->value, "1");
+
+  return NGX_DECLINED;
+}
+
 ngx_int_t InjectionHandler::on_header_filter(
     ngx_http_request_t *r, datadog_loc_conf_t *cfg,
     ngx_http_output_header_filter_pt &next_header_filter) {
-  if (!cfg->rum_enable || cfg->rum_snippet == NULL)
+  if (!cfg->rum_enable || cfg->rum_snippet == nullptr)
     return next_header_filter(r);
 
   if (r->header_only || r->headers_out.content_length_n == 0 ||
@@ -64,7 +80,7 @@ ngx_int_t InjectionHandler::on_header_filter(
   // Set header now 'cause it will be too late after
   auto *h =
       static_cast<ngx_table_elt_t *>(ngx_list_push(&r->headers_out.headers));
-  if (h == NULL) {
+  if (h == nullptr) {
     state_ = state::error;
     return NGX_ERROR;
   }
@@ -84,12 +100,12 @@ ngx_int_t InjectionHandler::on_header_filter(
 ngx_int_t InjectionHandler::on_body_filter(
     ngx_http_request_t *r, datadog_loc_conf_t *cfg, ngx_chain_t *in,
     ngx_http_output_body_filter_pt &next_body_filter) {
-  if (!cfg->rum_enable || in == NULL || state_ != state::searching) {
+  if (!cfg->rum_enable || in == nullptr || state_ != state::searching) {
     return next_body_filter(r, in);
   }
 
   ngx_chain_t *out;
-  ngx_chain_t *lp = NULL;
+  ngx_chain_t *lp = nullptr;
   ngx_chain_t **ll = &out;
   InjectorResult result;
 
@@ -127,21 +143,6 @@ ngx_int_t InjectionHandler::on_body_filter(
   return output(r, out, next_body_filter);
 }
 
-ngx_int_t InjectionHandler::on_rewrite_handler(ngx_http_request_t *r) {
-  ngx_table_elt_t *h =
-      static_cast<ngx_table_elt_t *>(ngx_list_push(&r->headers_in.headers));
-  if (h == NULL) {
-    return NGX_ERROR;
-  }
-
-  h->hash = 1;
-  h->lowcase_key = (u_char *)"x-datadog-sdk-injection";
-  ngx_str_set(&h->key, "x-datadog-sdk-injection");
-  ngx_str_set(&h->value, "1");
-
-  return NGX_DECLINED;
-}
-
 ngx_int_t InjectionHandler::output(
     ngx_http_request_t *r, ngx_chain_t *out,
     ngx_http_output_body_filter_pt &next_body_filter) {
@@ -158,7 +159,7 @@ ngx_chain_t *InjectionHandler::inject(ngx_pool_t *pool, ngx_chain_t *in,
   ngx_chain_t **ll = &out;
 
   ngx_chain_t *cl = ngx_chain_get_free_buf(pool, &(free_));
-  if (cl == NULL) {
+  if (cl == nullptr) {
     /* TBD */
   }
   size_t needed = 0;

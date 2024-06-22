@@ -124,6 +124,7 @@ ngx_int_t DatadogContext::on_output_body_filter(ngx_http_request_t *request,
 #endif
 
 #ifdef WITH_RUM
+  // TODO: If WAF is blocking, no need to inject the RUM SDK.
   auto *trace = find_trace(request);
   if (trace != nullptr) {
     auto rum_span = trace->active_span().create_child();
@@ -137,6 +138,7 @@ ngx_int_t DatadogContext::on_output_body_filter(ngx_http_request_t *request,
     if (status == NGX_ERROR) {
       rum_span.set_error(true);
     }
+    return status;
   } else {
     return rum_ctx_.on_body_filter(request, loc_conf, chain, next_body_filter_);
   }

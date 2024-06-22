@@ -22,14 +22,16 @@ class InjectionHandler final {
 
   bool output_padding_;
 
-  ngx_chain_t *busy_{nullptr};
-  ngx_chain_t *free_{nullptr};
+  ngx_chain_t *busy_;
+  ngx_chain_t *free_;
 
-  Injector *injector_{nullptr};
+  Injector *injector_;
 
  public:
   InjectionHandler();
   ~InjectionHandler() = default;
+
+  ngx_int_t on_rewrite_handler(ngx_http_request_t *r);
 
   ngx_int_t on_header_filter(
       ngx_http_request_t *r, datadog_loc_conf_t *cfg,
@@ -38,8 +40,6 @@ class InjectionHandler final {
   ngx_int_t on_body_filter(ngx_http_request_t *r, datadog_loc_conf_t *cfg,
                            ngx_chain_t *in,
                            ngx_http_output_body_filter_pt &next_body_filter);
-
-  ngx_int_t on_rewrite_handler(ngx_http_request_t *r);
 
  private:
   ngx_int_t output(ngx_http_request_t *r, ngx_chain_t *out,
