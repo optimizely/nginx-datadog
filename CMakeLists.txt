@@ -79,7 +79,7 @@ add_library(ngx_http_datadog_module SHARED)
 
 if(NGINX_DATADOG_RUM_ENABLED)
   add_subdirectory(deps)
-  add_dependencies(ngx_http_datadog_module inject-browser-sdk)
+  add_dependencies(ngx_http_datadog_module injectbrowsersdk)
 endif()
 
 target_sources(ngx_http_datadog_module
@@ -125,12 +125,8 @@ if(NGINX_DATADOG_RUM_ENABLED)
   )
   target_compile_definitions(ngx_http_datadog_module PRIVATE WITH_RUM)
 
-  target_link_libraries(ngx_http_datadog_module inject-browser-sdk)
+  target_link_libraries(ngx_http_datadog_module injectbrowsersdk)
 
-target_include_directories(ngx_http_datadog_module
-  PRIVATE
-  inject-browser-sdk
-)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
