@@ -53,14 +53,16 @@ DatadogContext::DatadogContext(
 void DatadogContext::on_change_block(ngx_http_request_t *request,
                                      ngx_http_core_loc_conf_t *core_loc_conf,
                                      datadog_loc_conf_t *loc_conf) {
-  auto trace = find_trace(request);
-  if (trace != nullptr) {
-    trace->on_change_block(core_loc_conf, loc_conf);
-  } else {
-    // This is a new subrequest, so add a RequestTracing for it.
-    // TODO: Should `active_span` be `request_span` instead?
-    traces_.emplace_back(request, core_loc_conf, loc_conf,
-                         &traces_[0].active_span());
+  if (loc_conf->enable) {
+    auto trace = find_trace(request);
+    if (trace != nullptr) {
+      trace->on_change_block(core_loc_conf, loc_conf);
+    } else {
+      // This is a new subrequest, so add a RequestTracing for it.
+      // TODO: Should `active_span` be `request_span` instead?
+      traces_.emplace_back(request, core_loc_conf, loc_conf,
+                           &traces_[0].active_span());
+    }
   }
 }
 
