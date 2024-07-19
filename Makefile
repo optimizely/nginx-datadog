@@ -9,7 +9,7 @@ PWD ?= $(shell pwd)
 NGINX_SRC_DIR ?= $(PWD)/nginx
 ARCH ?= $(shell arch)
 COVERAGE ?= OFF
-DOCKER_REPOS ?= public.ecr.aws/b1o7r7e0/nginx_musl_toolchain
+DOCKER_REPOS ?= datadog/docker-library
 
 SHELL := /bin/bash
 
@@ -82,13 +82,13 @@ build-musl-toolchain:
 
 .PHONY: build-push-musl-toolchain
 build-push-musl-toolchain:
-	docker build --progress=plain --platform linux/amd64 --build-arg ARCH=x86_64 -t $(DOCKER_REPOS):latest-amd64 build_env
-	docker push $(DOCKER_REPOS):latest-amd64
-	docker build --progress=plain --platform linux/arm64 --build-arg ARCH=aarch64 -t $(DOCKER_REPOS):latest-arm64 build_env
-	docker push $(DOCKER_REPOS):latest-arm64
-	docker buildx imagetools create -t $(DOCKER_REPOS):latest \
-		$(DOCKER_REPOS):latest-amd64 \
-		$(DOCKER_REPOS):latest-arm64
+	docker build --progress=plain --platform linux/amd64 --build-arg ARCH=x86_64 -t $(DOCKER_REPOS):musl-latest-amd64 build_env
+	docker push $(DOCKER_REPOS):musl-latest-amd64
+	docker build --progress=plain --platform linux/arm64 --build-arg ARCH=aarch64 -t $(DOCKER_REPOS):musl-latest-arm64 build_env
+	docker push $(DOCKER_REPOS):musl-latest-arm64
+	docker buildx imagetools create -t $(DOCKER_REPOS):musl-latest \
+		$(DOCKER_REPOS):musl-latest-amd64 \
+		$(DOCKER_REPOS):musl-latest-arm64
 
 .PHONY: build-musl
 build-musl:
@@ -101,7 +101,7 @@ build-musl:
 		--env RUM=$(RUM) \
 		--env COVERAGE=$(COVERAGE) \
 		--mount "type=bind,source=$(PWD),destination=/mnt/repo" \
-		$(DOCKER_REPOS):latest \
+		$(DOCKER_REPOS):musl-latest \
 		make -C /mnt/repo build-musl-aux
 
 # this is what's run inside the container nginx_musl_toolchain
@@ -131,11 +131,11 @@ coverage:
 	test/bin/run --verbose --failfast
 	docker run --init --rm --platform $(DOCKER_PLATFORM) \
 		--mount "type=bind,source=$(PWD),destination=/mnt/repo" \
-		$(DOCKER_REPOS):latest \
+		$(DOCKER_REPOS):musl-latest \
 		tar -C /mnt/repo/.musl-build -xzf /mnt/repo/test/coverage_data.tar.gz
 	docker run --init --rm --platform $(DOCKER_PLATFORM) \
 		--mount "type=bind,source=$(PWD),destination=/mnt/repo" \
-		$(DOCKER_REPOS):latest \
+		$(DOCKER_REPOS):musl-latest \
 		bin/sh -c 'cd /mnt/repo/.musl-build; llvm-profdata merge -sparse *.profraw -o default.profdata && llvm-cov export ./ngx_http_datadog_module.so -format=lcov -instr-profile=default.profdata -ignore-filename-regex=/mnt/repo/src/coverage_fixup\.c > coverage.lcov'
 
 
