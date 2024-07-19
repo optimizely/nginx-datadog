@@ -19,8 +19,11 @@
 #include "global_tracer.h"
 #include "log_conf.h"
 #include "ngx_logger.h"
-#ifdef WITH_WAF
+#if defined(WITH_WAF)
 #include "security/library.h"
+#endif
+#if defined(WITH_RUM)
+#include "rum/config.h"
 #endif
 #include "string_util.h"
 #include "tracing_library.h"
@@ -391,20 +394,7 @@ static ngx_command_t datadog_commands[] = {
       nullptr,
     },
 #endif
-
-#ifdef WITH_RUM
-    {
-      ngx_string("datadog_rum"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot, NGX_HTTP_LOC_CONF_OFFSET, offsetof(datadog_loc_conf_t, rum_enable), NULL
-    },
-    {
-      ngx_string("datadog_rum_configuration"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      set_datadog_rum_configuration, NGX_HTTP_LOC_CONF_OFFSET, 0, NULL
-    },
-#endif
-
+    DATADOG_RUM_DIRECTIVES
     ngx_null_command
 };
 
@@ -887,11 +877,7 @@ static char *merge_datadog_loc_conf(ngx_conf_t *cf, void *parent,
 #endif
 
 #ifdef WITH_RUM
-  ngx_conf_merge_value(conf->rum_enable, prev->rum_enable, 0);
-  ngx_conf_merge_str_value(conf->rum_config_file, prev->rum_config_file, "");
-  if (conf->rum_snippet == nullptr) {
-    conf->rum_snippet = prev->rum_snippet;
-  }
+  datadog_rum_merge_loc_config(cf, prev, conf);
 #endif
 
   return NGX_CONF_OK;

@@ -26,7 +26,7 @@ EXPECTED_BIG_CHONK = """<!DOCTYPE html>
   n=o.getElementsByTagName(u)[0];n.parentNode.insertBefore(d,n)
 })(window,document,'script','https://www.datadoghq-browser-agent.com/us1/v5/datadog-rum.js','DD_RUM')
 window.DD_RUM.onReady(function() {
-  window.DD_RUM.init({"applicationId":"<DATADOG_APPLICATION_ID>","clientToken":"<DATADOG_CLIENT_TOKEN>","env":"production","service":"my-web-application","sessionReplaySampleRate":100,"sessionSampleRate":100,"site":"<DATADOG_SITE>","trackLongTasks":true,"trackResources":true,"trackUserInteractions":true,"version":"1.0.0"});
+  window.DD_RUM.init({"applicationId":"<DATADOG_APPLICATION_ID>","clientToken":"<DATADOG_CLIENT_TOKEN>","env":"production","service":"my-web-application","sessionReplaySampleRate":100.0,"sessionSampleRate":100.0,"site":"<DATADOG_SITE>","trackLongTasks":true,"trackResources":true,"trackUserInteractions":true,"version":"1.0.0"});
 });
 </script>
 </head>
@@ -242,8 +242,7 @@ class TestRUMInjection(case.TestCase):
 
     def load_conf(self, conf_file):
         conf_path = Path(__file__).parent / "conf" / conf_file
-        return self.orch.nginx_replace_config(conf_path.read_text(),
-                                              conf_path.name)
+        return self.orch.nginx_replace_config(conf_path.read_text(), conf_path.name)
 
     def compute_sha256(self, input):
         sha256_hash = hashlib.sha256()
@@ -347,8 +346,7 @@ class TestRUMInjection(case.TestCase):
         status, lines = self.load_conf("rum_enabled.conf")
         self.assertEqual(0, status, lines)
 
-        status, headers, body = self.orch.send_nginx_http_request(
-            "/dd_logo_v_rgb.png")
+        status, headers, body = self.orch.send_nginx_http_request("/dd_logo_v_rgb.png")
         headers = self.make_dict_headers(headers)
         self.assertEqual(status, 200)
         self.assertTrue("x-datadog-sdk-injected" not in headers)
@@ -365,8 +363,7 @@ class TestRUMInjection(case.TestCase):
         status, lines = self.load_conf("rum_enabled.conf")
         self.assertEqual(0, status, lines)
 
-        status, headers, body = self.orch.send_nginx_http_request(
-            "/disable-rum")
+        status, headers, body = self.orch.send_nginx_http_request("/disable-rum")
         headers = self.make_dict_headers(headers)
         assert status == 200
         assert headers.get("x-datadog-sdk-injected") == None
