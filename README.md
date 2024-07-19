@@ -62,7 +62,7 @@ Build
 -----
 Requirements:
 - C and C++ toolchain (`clang` or `gcc/g++`).
-- CMake `v3.7` or newer.
+- CMake `v3.7` or newer. (If you are on codespaces, you can use `install_cmake_codespaces.sh` to set this up)
 - Architecture must be `x86_64` or `arm64`.
 
 For enhanced usability, we provide a [GNU make][1] compatible [Makefile](Makefile).
