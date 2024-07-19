@@ -68,7 +68,7 @@ Requirements:
 For enhanced usability, we provide a [GNU make][1] compatible [Makefile](Makefile).
 
 ```shell
-NGINX_VERSION=1.25.2 make build
+NGINX_VERSION=1.24.0 make build
 ```
 
 The resulting nginx module is `.build/ngx_http_datadog_module.so`
