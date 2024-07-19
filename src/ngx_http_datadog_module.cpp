@@ -619,6 +619,12 @@ static ngx_int_t datadog_init_worker(ngx_cycle_t *cycle) noexcept try {
   ngx_log_error(NGX_LOG_INFO, cycle->log, 0, "- tracing: dd-trace-cpp@%s",
                 datadog_version_tracer);
 
+#ifdef WITH_RUM
+  ngx_log_error(NGX_LOG_INFO, cycle->log, 0,
+                "- rum-injection: inject-browser-sdk@%s",
+                datadog_semver_rum_injector);
+#endif
+
   std::shared_ptr<dd::Logger> logger = std::make_shared<NgxLogger>();
 #ifdef WITH_WAF
   ngx_log_error(NGX_LOG_INFO, cycle->log, 0,
@@ -642,6 +648,7 @@ static ngx_int_t datadog_init_worker(ngx_cycle_t *cycle) noexcept try {
   }
 
   reset_global_tracer(std::move(*maybe_tracer));
+
   return NGX_OK;
 } catch (const std::exception &e) {
   ngx_log_error(NGX_LOG_ERR, cycle->log, 0, "failed to initialize tracer: %s",

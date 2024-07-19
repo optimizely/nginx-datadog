@@ -24,10 +24,8 @@ const char datadog_version_libddwaf[] = "[libddwaf version @LIBDDWAF_VERSION@]";
 #endif
 
 #ifdef WITH_RUM
-// TODO: `include_version` not working. Find a way to make cbindgen generate the
-// version from cargo.toml
-/*#include <injectbrowsersdk.h>*/
-extern const char datadog_version_rum_injector[];
-const char datadog_version_rum_injector[] = "[rum_injector version 0.1.0]";
+const char datadog_semver_rum_injector[] = "@RUM_SDK_INJECTOR@";
+const char datadog_version_rum_injector[] =
+    "[inject-browser-sdk version @RUM_SDK_INJECTOR@]";
 #endif
 }

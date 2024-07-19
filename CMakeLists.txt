@@ -21,11 +21,20 @@ option(NGINX_PATCH_AWAY_LIBC "Patch away libc dependency" OFF)
 option(NGINX_COVERAGE "Add coverage instrumentation" OFF)
 
 message(STATUS "nginx-datadog version=[${NGINX_DATADOG_VERSION}]")
+
+set(NGINX_DATADOG_PRODUCTS_LIST "tracing")
 if (NGINX_DATADOG_ASM_ENABLED)
-  message(STATUS "nginx-datadog products: tracing appsec")
-else ()
-  message(STATUS "nginx-datadog products: tracing")
+  list(APPEND NGINX_DATADOG_PRODUCTS_LIST "appsec")
 endif ()
+
+if (NGINX_DATADOG_RUM_ENABLED)
+  list(APPEND NGINX_DATADOG_PRODUCTS_LIST "rum-injection")
+endif ()
+
+list(JOIN NGINX_DATADOG_PRODUCTS_LIST " " NGINX_DATADOG_PRODUCTS)
+unset(NGINX_DATADOG_PRODUCTS_LIST)
+
+message(STATUS "nginx-datadog products: ${NGINX_DATADOG_PRODUCTS}")
 
 if (NGINX_DATADOG_RUM_ENABLED AND NGINX_DATADOG_ASM_ENABLED)
   message(FATAL_ERROR "ASM and RUM features are mutually exclusive")
@@ -78,6 +87,11 @@ if(NGINX_DATADOG_ASM_ENABLED)
   unset(ASM_RULES)
 endif()
 
+if(NGINX_DATADOG_RUM_ENABLED)
+  set(RUM_SDK_INJECTOR 0.1.0)
+  add_subdirectory(deps)
+endif()
+
 include(./cmake/generate_build_id.cmake)
 
 # Generate the build identifier.
@@ -88,11 +102,6 @@ configure_file(src/version.cpp.in ${CMAKE_BINARY_DIR}/version.cpp)
 
 # The shared library (nginx module) that we are building.
 add_library(ngx_http_datadog_module SHARED)
-
-if(NGINX_DATADOG_RUM_ENABLED)
-  add_subdirectory(deps)
-  add_dependencies(ngx_http_datadog_module injectbrowsersdk)
-endif()
 
 target_sources(ngx_http_datadog_module
   PRIVATE
